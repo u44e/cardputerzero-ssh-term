@@ -25,6 +25,8 @@ static struct {
     volatile int  running;
     volatile int  dirty;
     volatile int  alive;
+    int           inited;      /* resources live (mutex/vt/reader) — destroy guard */
+    int           paused;      /* freeze rendering while an overlay covers the term */
     int           cols, rows, cell_w, cell_h;
     const lv_font_t *font;
     lv_obj_t     *runlbl[MAX_ROWS][MAX_RUNS];   /* per color-run labels */
@@ -99,9 +101,12 @@ static lv_obj_t *mkrun(int r, int col, uint32_t rgb, const char *txt)
 }
 
 /* render: cells -> per color-run labels (LVGL thread) */
+void term_render_pause(int paused) { g.paused = paused ? 1 : 0; }
+
 static void render_cb(lv_timer_t *t)
 {
     (void)t;
+    if (g.paused) return;         /* an overlay covers the terminal — don't repaint/raise cursor */
     if (!g.dirty) return;
     pthread_mutex_lock(&g.mtx);
     g.dirty = 0;
@@ -195,6 +200,7 @@ void term_create(lv_obj_t *parent, const char *const argv[],
     g.cols = cols; g.rows = rows; g.cell_w = cell_w; g.cell_h = cell_h; g.font = font;
     g.alive = 1;
     pthread_mutex_init(&g.mtx, NULL);
+    g.inited = 1;
 
     build_grid();
 
@@ -268,6 +274,8 @@ int term_is_alive(void)
 
 void term_destroy(void)
 {
+    if (!g.inited) return;        /* idempotent: safe to call with no live session */
+    g.inited = 0;
     g.running = 0;
     if (g.pty.fd >= 0) pty_close(&g.pty);     /* unblock reader via EOF */
     if (g.reader) pthread_join(g.reader, NULL);

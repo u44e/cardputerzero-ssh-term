@@ -26,4 +26,7 @@ int term_is_alive(void);
 /* Tear down: stop reader thread, close PTY, free vterm. */
 void term_destroy(void);
 
+/* Freeze/resume rendering (and cursor raise) while an overlay covers the term. */
+void term_render_pause(int paused);
+
 #endif /* SSH_TERM_TERM_H */

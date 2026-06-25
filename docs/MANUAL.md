@@ -18,6 +18,7 @@
 | `Enter` | 決定 |
 | `ESC` | 戻る（ターミナル中は端末へ送信） |
 | **SIDEキー** | ターミナル中に Session Menu を開く（エミュは `Fn+Q`） |
+| **HOMEボタン** | ランチャーへ戻る（ホストが処理。アプリ側はPTY/ログ/VPNを自動で後始末） |
 
 ---
 
@@ -165,17 +166,18 @@ VPN起動に失敗した時も同様のダイアログで「Connect anyway（こ
 ## 10b. 表示言語（EN / 日本語 UI）
 
 接続先一覧で `g` キーを押すと、UI 表示（メニュー・項目名・キーガイド等）を **英語 ⇄ 日本語** で
-切り替えます（`term.conf` に保存）。日本語はデバイス常駐の CJK フォントで描画されます。
+切り替えます（`term.conf` に保存）。日本語はデバイス常駐の CJK フォントで描画され、ベースラインを
+合わせて英語レイアウトと縦位置が揃います。上下左右の操作は **↑↓←→** で示します。
 ※これは表示言語の切替で、文字入力の日本語IME（OS の fcitx5）とは別です。
 
-**接続先一覧（日本語）**
-![日本語UI 一覧](manual/ja_profiles.png)
+**接続先一覧（English / 日本語）**
+![一覧 EN/JA](manual/cmp_profiles.png)
 
-**プロファイル編集（日本語）**
-![日本語UI 編集](manual/ja_editor.png)
+**プロファイル編集（English / 日本語）**
+![編集 EN/JA](manual/cmp_editor.png)
 
-**Session Menu（日本語）**
-![日本語UI メニュー](manual/ja_menu.png)
+**Session Menu（English / 日本語）**
+![メニュー EN/JA](manual/cmp_menu.png)
 
 ---
 

@@ -2,7 +2,8 @@
 
 A portable terminal for the **M5CardputerZero** (AArch64 Linux / Raspberry Pi OS, LVGL 9.5,
 320×170). SSH / telnet / local-shell sessions with connection profiles, VPN,
-session logging, config-file injection (charset auto-detect), and Japanese input.
+session logging, file injection (any text, charset auto-detect), Japanese input
+(OS IME), and a switchable EN/JA UI.
 
 The terminal core is a clean reimplementation — **libvterm (MIT) + a self-written
 `forkpty` wrapper** — so no third-party launcher code is copied. Fonts at runtime
@@ -53,10 +54,10 @@ Pi runtime deps (one-time): `libvterm0` (added to deploy-run.sh), plus
 
 ## Keys
 
-**Sessions list:** `↑/↓` select · `Enter` connect · `e` edit · `n` new · `d` delete · `l` logs
-**Editor:** `↑/↓` field · `Enter` edit (text) · `←/→` toggle (proto/log) · `s` save · `ESC` back
-**Terminal:** all keys → PTY · `` ` `` toggles the IME · **SIDE key** opens the session menu (`Fn+Q` on the emulator)
-**IME on:** type romaji → hiragana preedit · `Enter` commit · `Space` commit · `ESC`/`Backspace` edit
+**Sessions list:** `↑/↓` select · `Enter` connect · `e` edit · `n` new · `d` delete · `l` logs · `g` EN/JA UI
+**Editor:** `↑/↓` field · `Enter` edit (text) · `←/→` toggle (proto/VPN/log) · `s` save · `ESC` back
+**Terminal:** all keys → PTY · **SIDE key** opens the session menu (`Fn+Q` on the emulator)
+**Japanese input:** via the OS IME (fcitx5-mozc); system toggle (Ctrl+Space) — no in-app IME
 
 ## Profiles
 
@@ -77,14 +78,15 @@ src/config.{c,h} profiles persistence
 src/logsink.{c,h} raw log tee + browser + ANSI strip
 src/sendfile.{c,h} charset detect + iconv->UTF-8 + paced send
 src/vpn.{c,h}    pkexec bring-up/teardown + getifaddrs probe
-src/ime.{c,h}    romaji->hiragana engine + preedit/commit (mozc kanji = TODO)
+                 (Japanese input = OS IME; no in-app IME module)
 docs/SCREENS.md  screen spec + docs/mockups/ PNGs   docs/gen_mockups.py
 ```
 
-## Env hooks (headless testing)
-`TERM_CONF` `TERM_LOGDIR` `TERM_FILEDIR` set paths; `AUTO_CONNECT=<i>` `AUTO_EDIT=<i>`
-`AUTO_LOGS` `AUTO_FILES` `AUTO_MENU` `AUTO_SENDFILE=<path>` `AUTO_IME=<romaji>` drive
-screens on startup for screenshots.
+## Env hooks (headless testing — compiled in only with `-DSSH_TERM_TEST_HOOKS`)
+`TERM_CONF` `TERM_LOGDIR` `TERM_FILEDIR` set paths; `UI_LANG=ja` forces the JA UI;
+`AUTO_CONNECT=<i>` `AUTO_EDIT=<i>` `AUTO_LOGS` `AUTO_FILES` `AUTO_MENU`
+`AUTO_SENDFILE=<path>` drive screens on startup for screenshots. Device/production
+builds (no `SSH_TERM_TEST_HOOKS`) exclude all of these.
 
 ## License notes
 App code is original (MIT-intended). The CardputerZero launcher is unlicensed, so

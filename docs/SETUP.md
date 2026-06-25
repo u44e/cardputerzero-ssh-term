@@ -62,6 +62,51 @@ ssh pi@<実機IP> 'sudo apt-get update && sudo apt-get install -y \
 
 ---
 
+## 4b. ランチャーへの登録（アイコン付き）
+
+`deploy-run.sh` は開発用にウィンドウ起動するだけです。**ランチャー（zero-shell）の一覧にアイコン付きで常設**するには、
+`/usr/share/APPLaunch/applications/*.desktop` を置きます（launcher はここを走査）。アイコンは本リポジトリの
+**`icon.png`（100×100）**、`app-builder.json` の `"icon": "icon.png"` で指定済み。
+
+### 方法A（推奨）: AppBuilder CI で `.deb` を作って入れる
+リポジトリを AppBuilder に出すと、`.desktop`・アイコン・systemd 雛形・dlopen ホスト配線まで含む `.deb` が生成され、
+`dpkg -i` で**自動登録**されます（手作業の .desktop 不要）。`.deb` の中身：
+```
+usr/share/APPLaunch/
+  ├── applications/ssh_term.desktop      ← ランチャーが走査
+  ├── bin/ssh_term                       ← 起動エントリ
+  ├── lib/libssh_term.so                 ← lvgl-dlopen 本体
+  └── share/images/ssh_term.png          ← アイコン（icon.png 由来）
+```
+```sh
+# CI(build-deb.yml) で生成した .deb を実機へ
+scp ssh_term_*_arm64.deb pi@<実機IP>:/tmp/
+ssh pi@<実機IP> 'sudo dpkg -i /tmp/ssh_term_*_arm64.deb'
+# 反映: ランチャーを再読込（または再ログイン）
+```
+
+### 方法B（手動）: .desktop とアイコンを直接置く
+CI を使わず手で登録する場合：
+```sh
+# アイコンを配置
+scp icon.png pi@<実機IP>:/tmp/ssh_term.png
+ssh pi@<実機IP> 'sudo install -Dm644 /tmp/ssh_term.png /usr/share/APPLaunch/share/images/ssh_term.png'
+# .desktop を作成
+ssh pi@<実機IP> 'sudo tee /usr/share/APPLaunch/applications/ssh_term.desktop >/dev/null' <<'EOF'
+[Desktop Entry]
+Name=SSH Terminal
+Exec=/usr/share/APPLaunch/bin/ssh_term
+Icon=share/images/ssh_term.png
+Terminal=false
+Type=Application
+EOF
+```
+> `Exec` は lvgl-dlopen ホストの起動ラッパ（`.deb` が生成する `bin/ssh_term`）。手動構成では
+> ホストが `libssh_term.so` を dlopen して `app_main` を呼ぶ形に合わせてください（環境依存・要実機確認）。
+> アイコンは launcher 規約に合わせ **正方形 PNG（〜64〜100px）** を推奨（本アイコンは 100×100）。
+
+---
+
 ## 5. 日本語入力（OS IME）の有効化 ※日本語を打つ場合
 他アプリと共通の **fcitx5‑mozc** を使います（アプリ内IMEは無し）。
 ```sh

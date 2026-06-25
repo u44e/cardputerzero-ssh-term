@@ -47,7 +47,8 @@ static lv_timer_t *g_watch;
 
 static const lv_font_t *g_mono;
 static int g_cols = 45, g_rows = 12, g_cw = 7, g_ch = 12;
-static lv_obj_t   *g_overlay;              /* menu/dialog/send/files overlay */
+static lv_obj_t   *g_overlay;              /* menu/dialog/send/files panel (child of backdrop) */
+static lv_obj_t   *g_backdrop;             /* full-screen opaque cover behind the panel */
 static lv_obj_t   *g_logview_ta;           /* log viewer scrollable textarea */
 
 /* editor state */
@@ -113,8 +114,16 @@ static const lv_font_t *ui_font(int px)
         const lv_font_t **slot = (px >= 14) ? &jp14 : &jp12;
         if (!*slot) {
             lv_freetype_init(256);
-            *slot = lv_freetype_font_create(UI_JP_PATH, LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
-                                            px >= 14 ? 14 : 12, LV_FREETYPE_FONT_STYLE_NORMAL);
+            lv_font_t *fp = lv_freetype_font_create(UI_JP_PATH, LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                                    px >= 14 ? 14 : 12, LV_FREETYPE_FONT_STYLE_NORMAL);
+            if (fp) {
+                /* CJK freetype metrics sit lower than Montserrat; match the baseline
+                 * and line height so JA UI text lines up with the EN layout. */
+                const lv_font_t *ms = (px >= 14) ? &lv_font_montserrat_14 : &lv_font_montserrat_12;
+                fp->base_line   = ms->base_line;
+                fp->line_height = ms->line_height;
+            }
+            *slot = fp;
         }
         if (*slot) return *slot;
     }
@@ -201,8 +210,8 @@ static void show_profiles(void)
     }
 
     lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
-                              tr("Up/Dn  Enter  e:edit  n:new  d:del  l:logs  g:日本語",
-                                 "上下 Enter:接続 e:編集 n:新規 d:削除 l:ログ g:English"));
+                              tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter  e:edit  n:new  d:del  l:logs  g:JP",
+                                 "↑↓ Enter:接続 e:編集 n:新規 d:削除 l:ログ g:EN"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -273,7 +282,8 @@ static void show_editor(int idx)
 
     lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
         g_editing ? tr("type...  Enter:ok  ESC:cancel","入力...  Enter:確定  ESC:取消")
-                  : tr("Up/Dn  Enter:edit  Left/Right:toggle  s:save  ESC:back","上下:項目 Enter:編集 左右:切替 s:保存 ESC:戻る"));
+                  : tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter:edit  " LV_SYMBOL_LEFT LV_SYMBOL_RIGHT ":toggle  s:save  ESC:back",
+                       "↑↓ Enter:編集 ←→:切替 s:保存 ESC:戻る"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -361,7 +371,7 @@ static void add_status_bar(const profile_t *p, int logging)
     mkrect(0x0A0A10, 0, by, 320, 170 - by);
     mkrect(COL_DIM, 0, by, 320, 1);
     char s[96];
-    snprintf(s, sizeof(s), tr("%s   CONNECTED%s   SIDE=menu","%s   接続中%s   SIDE=メニュー"),
+    snprintf(s, sizeof(s), tr("%s   CONNECTED%s   SIDE=menu","%s   接続中%s   SIDE=menu"),
              p->name, logging ? tr("   REC","   録画") : "");
     g_status = lv_label_create(g_root);
     lv_obj_set_style_text_font(g_status, ui_font(12), 0);
@@ -378,7 +388,8 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     if (!argv || !p) { show_profiles(); return; }
     load_font_idx(size_to_idx(p->size));
 
-    g_overlay = NULL;                /* any dialog overlay is cleaned by lv_obj_clean below */
+    g_overlay = NULL; g_backdrop = NULL;   /* cleaned by lv_obj_clean above */
+    term_render_pause(0);
     lv_obj_clean(g_root);
     lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
@@ -428,7 +439,7 @@ static void show_logs(void)
     }
     if (n == 0) mklabel(ui_font(12), COL_DIM, 12, 32, tr("(no logs yet)","(ログなし)"));
 
-    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr("Up/Dn  Enter:view  d:del  ESC:back","上下:選択 Enter:表示 d:削除 ESC:戻る"));
+    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter:view  d:del  ESC:back","↑↓ Enter:表示 d:削除 ESC:戻る"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -457,7 +468,7 @@ static void show_logview(int i)
     lv_textarea_set_text(ta, buf);
     g_logview_ta = ta;
 
-    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr("Up/Dn:scroll  ESC:back","上下:スクロール ESC:戻る"));
+    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr(LV_SYMBOL_UP LV_SYMBOL_DOWN ":scroll  ESC:back","↑↓:スクロール ESC:戻る"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -2);
     attach_capture();
 }
@@ -489,17 +500,40 @@ static const char *filedir(void)
     return (d && *d) ? d : "/sdcard";
 }
 
+/* delete the whole overlay (backdrop + panel) and resume the terminal render */
+static void kill_overlay(void)
+{
+    if (g_backdrop) { lv_obj_delete(g_backdrop); g_backdrop = NULL; }
+    g_overlay = NULL;
+    term_render_pause(0);
+}
+
 static void close_overlay(void)
 {
-    if (g_overlay) { lv_obj_delete(g_overlay); g_overlay = NULL; }
+    kill_overlay();
     g_scr = SCR_TERM;
 }
 
 static lv_obj_t *overlay_panel(int w, int h)
 {
-    lv_obj_t *o = lv_obj_create(g_root);
+    kill_overlay();                  /* drop any previous overlay first */
+    term_render_pause(1);            /* freeze the terminal so nothing bleeds through */
+
+    /* full-screen opaque backdrop so the screen behind the panel is fully hidden */
+    g_backdrop = lv_obj_create(g_root);
+    lv_obj_remove_flag(g_backdrop, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_border_width(g_backdrop, 0, 0);
+    lv_obj_set_style_radius(g_backdrop, 0, 0);
+    lv_obj_set_style_pad_all(g_backdrop, 0, 0);
+    lv_obj_set_style_bg_color(g_backdrop, lv_color_hex(COL_BG), 0);
+    lv_obj_set_style_bg_opa(g_backdrop, LV_OPA_COVER, 0);
+    lv_obj_set_size(g_backdrop, 320, 170);
+    lv_obj_set_pos(g_backdrop, 0, 0);
+
+    lv_obj_t *o = lv_obj_create(g_backdrop);   /* centered panel on the backdrop */
     lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_color(o, lv_color_hex(0x10101E), 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(o, lv_color_hex(COL_CYAN), 0);
     lv_obj_set_style_border_width(o, 1, 0);
     lv_obj_set_style_radius(o, 0, 0);
@@ -524,7 +558,6 @@ static const char *menu_label(int i)
 static void open_menu(void)   /* uses current g_menu_sel (caller resets for a fresh open) */
 {
     g_scr = SCR_MENU;
-    if (g_overlay) lv_obj_delete(g_overlay);
     g_overlay = overlay_panel(200, 124);
     lv_obj_t *t = lv_label_create(g_overlay);
     lv_obj_set_style_text_font(t, ui_font(14), 0);
@@ -556,7 +589,6 @@ static void open_files(void)
         }
         closedir(d);
     }
-    if (g_overlay) lv_obj_delete(g_overlay);
     g_overlay = overlay_panel(300, 150);
     lv_obj_t *t = lv_label_create(g_overlay);
     lv_obj_set_style_text_font(t, ui_font(14), 0);
@@ -596,7 +628,6 @@ static void key_files(uint32_t k)
 static void open_send(void)   /* confirm dialog showing the auto-detected charset */
 {
     g_scr = SCR_SEND;
-    if (g_overlay) lv_obj_delete(g_overlay);
     g_overlay = overlay_panel(290, 112);
     const char *enc = sendfile_detect(g_send_path);
     const char *bn = strrchr(g_send_path, '/'); bn = bn ? bn + 1 : g_send_path;
@@ -669,7 +700,6 @@ static char g_dlg_title[40], g_dlg_msg[96], g_dlg_yes_lbl[24];
 static void render_dialog(void)
 {
     uint32_t accent = g_dlg_accent;
-    if (g_overlay) lv_obj_delete(g_overlay);
     g_overlay = overlay_panel(244, 98);
     lv_obj_set_style_border_color(g_overlay, lv_color_hex(accent), 0);
     lv_obj_t *t = lv_label_create(g_overlay);
@@ -712,10 +742,10 @@ static void key_dialog(uint32_t k)
     switch (k) {
     case LV_KEY_LEFT:  g_dlg_sel = 0; render_dialog(); break;
     case LV_KEY_RIGHT: g_dlg_sel = 1; render_dialog(); break;
-    case LV_KEY_ESC:   lv_obj_delete(g_overlay); g_overlay = NULL; g_scr = g_dlg_prev; break;
+    case LV_KEY_ESC:   kill_overlay(); g_scr = g_dlg_prev; break;
     case LV_KEY_ENTER:
-        if (g_dlg_sel == 0 && g_dlg_yes) { void (*cb)(void) = g_dlg_yes; g_overlay = NULL; cb(); }
-        else { lv_obj_delete(g_overlay); g_overlay = NULL; g_scr = g_dlg_prev; }
+        if (g_dlg_sel == 0 && g_dlg_yes) { void (*cb)(void) = g_dlg_yes; kill_overlay(); cb(); }
+        else { kill_overlay(); g_scr = g_dlg_prev; }
         break;
     }
 }
@@ -781,8 +811,17 @@ void app_main(lv_obj_t *parent)
 void app_event(int type, void *data)
 {
     (void)data;
-    if (type == CZ_EV_EXIT_REQUEST && g_scr == SCR_TERM) { term_destroy(); logsink_close(); }
-    else if (type == CZ_EV_SIDE_KEY && g_scr == SCR_TERM) { g_menu_sel = 0; open_menu(); }
+    if (type == CZ_EV_EXIT_REQUEST) {
+        /* Host is unloading us — e.g. the HOME button returns to the launcher.
+         * Tear everything down from any screen so no PTY/log/VPN is left behind.
+         * (term_destroy/vpn_down/logsink_close are idempotent.) */
+        kill_overlay();
+        term_destroy();
+        logsink_close();
+        vpn_down();
+    } else if (type == CZ_EV_SIDE_KEY && g_scr == SCR_TERM) {
+        g_menu_sel = 0; open_menu();
+    }
 }
 
 #if defined(APP_EMU)
