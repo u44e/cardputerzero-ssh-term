@@ -756,6 +756,7 @@ void app_main(lv_obj_t *parent)
     const char *ac = getenv("AUTO_CONNECT"); if (ac) connect_profile(atoi(ac));
     const char *ae = getenv("AUTO_EDIT");    if (ae) show_editor(atoi(ae));
     const char *al = getenv("AUTO_LOGS");    if (al) show_logs();
+    const char *alv = getenv("AUTO_LOGVIEW"); if (alv) { logsink_list_count(); show_logview(atoi(alv)); }
     const char *as = getenv("AUTO_SENDFILE"); if (as) sendfile_start(as);
     const char *am = getenv("AUTO_MENU");     if (am) { g_menu_sel = 0; open_menu(); }
     const char *af = getenv("AUTO_FILES");    if (af) open_files();

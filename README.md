@@ -28,6 +28,12 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | **SGR colors in terminal** (per color-run labels; default green-on-black) | ✅ working (ls --color / vim) |
 | Ctrl combos (full set needs key_item / `LV_EVENT_KEYBOARD`) | ◐ partial on emu, full on device |
 
+## Documentation
+- **[取扱説明書 (User manual)](docs/MANUAL.md)** — 画面付き / illustrated per-screen ([PDF](docs/MANUAL.pdf))
+- [機能一覧 (Feature list)](docs/FEATURES.md)
+- [画面仕様 / mockups](docs/SCREENS.md)
+- [実機ブリングアップ手順 (device checklist)](docs/DEVICE_CHECKLIST.md)
+
 ## Build & run
 
 ### Desktop (macOS emulator — fast dev loop)
