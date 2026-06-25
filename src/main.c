@@ -314,8 +314,14 @@ static void show_editor(int idx)
         else                                               field_value(p, f, val, sizeof(val));
         mklabel(ui_font(12), g_ef[f].kind ? COL_CYAN : COL_TEXT, 92, y + 1, val);
     }
-    if (g_efn > VIS)   /* more fields than fit: hint */
-        mklabel(ui_font(12), COL_DIM, 0, 0, start + VIS < g_efn ? LV_SYMBOL_DOWN : LV_SYMBOL_UP);
+    if (start > 0) {                 /* more above: ▲ at top-right */
+        lv_obj_t *a = mklabel(ui_font(12), COL_CYAN, 0, 0, LV_SYMBOL_UP);
+        lv_obj_align(a, LV_ALIGN_TOP_RIGHT, -4, top);
+    }
+    if (start + VIS < g_efn) {       /* more below: ▼ at bottom-right of the list */
+        lv_obj_t *a = mklabel(ui_font(12), COL_CYAN, 0, 0, LV_SYMBOL_DOWN);
+        lv_obj_align(a, LV_ALIGN_TOP_RIGHT, -4, top + (VIS - 1) * rh);
+    }
 
     lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
         g_editing ? tr("type...  Enter:ok  ESC:cancel","入力...  Enter:確定  ESC:取消")
