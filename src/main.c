@@ -519,14 +519,15 @@ static lv_obj_t *overlay_panel(int w, int h)
     kill_overlay();                  /* drop any previous overlay first */
     term_render_pause(1);            /* freeze the terminal so nothing bleeds through */
 
-    /* full-screen opaque backdrop so the screen behind the panel is fully hidden */
+    /* Full-screen container that parents the panel (one delete frees both).
+     * Transparent — the terminal stays visible OUTSIDE the panel frame; only the
+     * panel itself is opaque. term_render_pause() keeps the cursor off the panel. */
     g_backdrop = lv_obj_create(g_root);
     lv_obj_remove_flag(g_backdrop, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_border_width(g_backdrop, 0, 0);
     lv_obj_set_style_radius(g_backdrop, 0, 0);
     lv_obj_set_style_pad_all(g_backdrop, 0, 0);
-    lv_obj_set_style_bg_color(g_backdrop, lv_color_hex(COL_BG), 0);
-    lv_obj_set_style_bg_opa(g_backdrop, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(g_backdrop, LV_OPA_TRANSP, 0);   /* see the terminal behind */
     lv_obj_set_size(g_backdrop, 320, 170);
     lv_obj_set_pos(g_backdrop, 0, 0);
 
