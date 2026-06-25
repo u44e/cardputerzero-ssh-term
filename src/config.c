@@ -22,6 +22,7 @@ static void set_field(profile_t *p, const char *key, const char *val)
     else if (!strcmp(key, "host"))  snprintf(p->host, sizeof(p->host), "%s", val);
     else if (!strcmp(key, "port"))  snprintf(p->port, sizeof(p->port), "%s", val);
     else if (!strcmp(key, "user"))  snprintf(p->user, sizeof(p->user), "%s", val);
+    else if (!strcmp(key, "vpn_type")) snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", val);
     else if (!strcmp(key, "vpn"))   snprintf(p->vpn, sizeof(p->vpn), "%s", val);
     else if (!strcmp(key, "log"))   p->log = atoi(val);
     else if (!strcmp(key, "size"))  snprintf(p->size, sizeof(p->size), "%s", val);
@@ -96,6 +97,7 @@ int config_save(void)
         fprintf(f, "p%d.host=%s\n",  i, p->host);
         fprintf(f, "p%d.port=%s\n",  i, p->port);
         fprintf(f, "p%d.user=%s\n",  i, p->user);
+        fprintf(f, "p%d.vpn_type=%s\n", i, p->vpn_type[0] ? p->vpn_type : "none");
         fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);
         fprintf(f, "p%d.log=%d\n",   i, p->log);
         fprintf(f, "p%d.size=%s\n",  i, p->size[0] ? p->size : "12");

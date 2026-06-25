@@ -22,9 +22,9 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | Session menu + file browser (Send file) + **confirm dialog** (delete / VPN-fail) | ✅ working |
 | Japanese IME: **OS IME (fcitx5-mozc / macOS) via SDL_TEXTINPUT** — kanji conversion | ✅ plumbed (needs IME running) |
 | Japanese IME: in-app **romaji → hiragana** fallback (no OS IME) | ✅ working |
-| VPN bring-up (`pkexec wg-quick`) + readiness probe + teardown | ✅ probe / ⏳ exec is device-only |
+| **VPN type selector** (iPhone-style): WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale | ✅ UI + per-type commands (exec device-only) |
+| VPN readiness probe (getifaddrs) + teardown | ✅ probe / ⏳ exec is device-only |
 | Connecting overlay (VPN→probe→ssh staged) | ⏳ not yet (cosmetic) |
-| VPN config schema (type / config / up-down commands) | ⏳ basic wg-quick only |
 | **SGR colors in terminal** (per color-run labels; default green-on-black) | ✅ working (ls --color / vim) |
 | Ctrl combos (full set needs key_item / `LV_EVENT_KEYBOARD`) | ◐ partial on emu, full on device |
 

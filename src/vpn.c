@@ -11,8 +11,20 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 
+/* iPhone-style selectable VPN types (Linux backends in comments) */
+const char *const VPN_TYPES[] = {
+    "none",
+    "wireguard",   /* wg-quick                */
+    "openvpn",     /* openvpn --config        */
+    "ikev2",       /* strongSwan: ipsec up    */
+    "l2tp",        /* xl2tpd + IPsec          */
+    "tailscale",   /* tailscale up            */
+};
+int vpn_type_count(void) { return (int)(sizeof(VPN_TYPES) / sizeof(VPN_TYPES[0])); }
+
 static int  s_we_started = 0;
-static char s_name[64] = {0};
+static char s_type[16] = {0};
+static char s_cfg[64]  = {0};
 
 int vpn_is_up(void)
 {
@@ -44,25 +56,46 @@ static int run(const char *const argv[])
     return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
 }
 
-int vpn_up(const char *name)
+int vpn_up(const char *type, const char *cfg)
 {
-    if (!name || !*name) return 0;     /* no VPN configured */
-    if (vpn_is_up()) { s_we_started = 0; return 0; }  /* already up */
+    if (!type || !*type || !strcmp(type, "none")) return 0;   /* no VPN */
+    if (vpn_is_up()) { s_we_started = 0; return 0; }          /* already up */
 
-    /* device: bring up via pkexec wg-quick. (openvpn/tailscale variants can be
-     * selected from the vpn config block in a later pass.) */
-    snprintf(s_name, sizeof(s_name), "%s", name);
-    const char *argv[] = { "pkexec", "wg-quick", "up", name, NULL };
+    const char *argv[8] = {0};
+    if (!strcmp(type, "wireguard"))
+        argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "up", argv[3] = cfg;
+    else if (!strcmp(type, "openvpn"))
+        argv[0] = "pkexec", argv[1] = "openvpn", argv[2] = "--config", argv[3] = cfg, argv[4] = "--daemon";
+    else if (!strcmp(type, "ikev2"))                          /* strongSwan */
+        argv[0] = "pkexec", argv[1] = "ipsec", argv[2] = "up", argv[3] = cfg;
+    else if (!strcmp(type, "l2tp"))                           /* xl2tpd control */
+        argv[0] = "pkexec", argv[1] = "xl2tpd-control", argv[2] = "connect", argv[3] = cfg;
+    else if (!strcmp(type, "tailscale"))
+        argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "up";
+    else
+        return -1;
+
     int rc = run(argv);
-    if (rc == 0) { s_we_started = 1; return vpn_is_up() ? 0 : 0; }
+    snprintf(s_type, sizeof(s_type), "%s", type);
+    snprintf(s_cfg, sizeof(s_cfg), "%s", cfg ? cfg : "");
+    if (rc == 0) { s_we_started = 1; return 0; }
     return -1;   /* caller offers "connect anyway / cancel" */
 }
 
 void vpn_down(void)
 {
-    if (!s_we_started || !s_name[0]) return;
-    const char *argv[] = { "pkexec", "wg-quick", "down", s_name, NULL };
-    run(argv);
-    s_we_started = 0;
-    s_name[0] = 0;
+    if (!s_we_started || !s_type[0]) return;
+    const char *argv[8] = {0};
+    if (!strcmp(s_type, "wireguard"))
+        argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "down", argv[3] = s_cfg;
+    else if (!strcmp(s_type, "openvpn"))
+        argv[0] = "pkexec", argv[1] = "pkill", argv[2] = "-f", argv[3] = "openvpn";
+    else if (!strcmp(s_type, "ikev2"))
+        argv[0] = "pkexec", argv[1] = "ipsec", argv[2] = "down", argv[3] = s_cfg;
+    else if (!strcmp(s_type, "l2tp"))
+        argv[0] = "pkexec", argv[1] = "xl2tpd-control", argv[2] = "disconnect", argv[3] = s_cfg;
+    else if (!strcmp(s_type, "tailscale"))
+        argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "down";
+    if (argv[0]) run(argv);
+    s_we_started = 0; s_type[0] = 0; s_cfg[0] = 0;
 }

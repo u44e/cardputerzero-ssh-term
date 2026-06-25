@@ -11,7 +11,8 @@ typedef struct {
     char host[128];
     char port[8];
     char user[64];
-    char vpn[32];    /* vpn profile name or "" */
+    char vpn_type[12]; /* none|wireguard|openvpn|ikev2|l2tp|tailscale */
+    char vpn[32];    /* vpn config name/path (wg/ovpn) or conn name (ipsec) */
     int  log;        /* 1 = save session log */
     char size[4];    /* terminal font px: "12" | "16" | "20" */
 } profile_t;

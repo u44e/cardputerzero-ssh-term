@@ -174,6 +174,9 @@ static void show_profiles(void)
         if (!strcmp(p->proto, "telnet")) lv_obj_set_style_text_color(m, lv_color_hex(COL_AMBER), 0);
         if (p->log) { lv_obj_t *L = mklabel(&lv_font_montserrat_12, COL_AMBER, 0, 0, "L");
                       lv_obj_align(L, LV_ALIGN_TOP_RIGHT, -8, y + 3); }
+        if (p->vpn_type[0] && strcmp(p->vpn_type, "none")) {
+            lv_obj_t *V = mklabel(&lv_font_montserrat_12, COL_GREEN, 0, 0, "V");
+            lv_obj_align(V, LV_ALIGN_TOP_RIGHT, p->log ? -24 : -8, y + 3); }
     }
 
     lv_obj_t *guide = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0,
@@ -186,8 +189,8 @@ static void show_profiles(void)
 static const char *field_label(int f)
 {
     switch (f) { case 0: return "Name"; case 1: return "Host"; case 2: return "Port";
-    case 3: return "User"; case 4: return "Proto"; case 5: return "VPN"; case 6: return "Log";
-    case 7: return "Size"; }
+    case 3: return "User"; case 4: return "Proto"; case 5: return "VPN type";
+    case 6: return "VPN cfg"; case 7: return "Log"; case 8: return "Size"; }
     return "?";
 }
 static void field_value(profile_t *p, int f, char *out, size_t n)
@@ -198,12 +201,13 @@ static void field_value(profile_t *p, int f, char *out, size_t n)
     case 2: snprintf(out, n, "%s", p->port); break;
     case 3: snprintf(out, n, "%s", p->user); break;
     case 4: snprintf(out, n, "< %s >", p->proto); break;
-    case 5: snprintf(out, n, "%s", p->vpn[0] ? p->vpn : "(none)"); break;
-    case 6: snprintf(out, n, "[%s] save session log", p->log ? "x" : " "); break;
-    case 7: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
+    case 5: snprintf(out, n, "< %s >", p->vpn_type[0] ? p->vpn_type : "none"); break;
+    case 6: snprintf(out, n, "%s", p->vpn[0] ? p->vpn : "(none)"); break;
+    case 7: snprintf(out, n, "[%s] save session log", p->log ? "x" : " "); break;
+    case 8: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
     }
 }
-static int field_is_text(int f) { return f <= 3 || f == 5; }
+static int field_is_text(int f) { return f <= 3 || f == 6; }
 static void field_set_text(profile_t *p, int f, const char *v)
 {
     switch (f) {
@@ -211,7 +215,7 @@ static void field_set_text(profile_t *p, int f, const char *v)
     case 1: snprintf(p->host, sizeof(p->host), "%s", v); break;
     case 2: snprintf(p->port, sizeof(p->port), "%s", v); break;
     case 3: snprintf(p->user, sizeof(p->user), "%s", v); break;
-    case 5: snprintf(p->vpn, sizeof(p->vpn), "%s", v); break;
+    case 6: snprintf(p->vpn, sizeof(p->vpn), "%s", v); break;
     }
 }
 
@@ -227,8 +231,8 @@ static void show_editor(int idx)
     char title[64]; snprintf(title, sizeof(title), "Edit: %s", p ? p->name : "?");
     mklabel(&lv_font_montserrat_14, COL_TITLE, 8, 4, title);
 
-    int top = 26, rh = 16;
-    for (int f = 0; f < 8; f++) {
+    int top = 24, rh = 14;
+    for (int f = 0; f < 9; f++) {
         int y = top + f * rh;
         if (f == g_field) { mkrect(COL_HILITE, 0, y, 320, rh - 1); mkrect(COL_CYAN, 0, y, 3, rh - 1); }
         mklabel(&lv_font_montserrat_12, f == g_field ? COL_TEXT : COL_DIM, 12, y + 1, field_label(f));
@@ -238,7 +242,7 @@ static void show_editor(int idx)
         } else {
             field_value(p, f, val, sizeof(val));
         }
-        uint32_t vc = (f == 4 || f == 6 || f == 7) ? COL_CYAN : COL_TEXT;
+        uint32_t vc = (f == 4 || f == 5 || f == 7 || f == 8) ? COL_CYAN : COL_TEXT;
         mklabel(&lv_font_montserrat_12, vc, 92, y + 1, val);
     }
 
@@ -257,9 +261,14 @@ static void editor_toggle(profile_t *p, int dir)
         for (int i = 0; i < 3; i++) if (!strcmp(p->proto, seq[i])) cur = i;
         cur = (cur + (dir >= 0 ? 1 : 2)) % 3;
         snprintf(p->proto, sizeof(p->proto), "%s", seq[cur]);
-    } else if (g_field == 6) {
-        p->log = !p->log;
+    } else if (g_field == 5) {                       /* VPN type (iPhone-style) */
+        int n = vpn_type_count(), cur = 0;
+        for (int i = 0; i < n; i++) if (!strcmp(p->vpn_type, VPN_TYPES[i])) cur = i;
+        cur = (cur + (dir >= 0 ? 1 : n - 1)) % n;
+        snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", VPN_TYPES[cur]);
     } else if (g_field == 7) {
+        p->log = !p->log;
+    } else if (g_field == 8) {
         int idx = (size_to_idx(p->size) + (dir >= 0 ? 1 : 2)) % 3;
         snprintf(p->size, sizeof(p->size), "%d", SIZES[idx]);
     }
@@ -279,7 +288,7 @@ static void key_editor(uint32_t k)
     }
     switch (k) {
     case LV_KEY_UP:    if (g_field > 0) g_field--; show_editor(g_edit_idx); break;
-    case LV_KEY_DOWN:  if (g_field < 7) g_field++; show_editor(g_edit_idx); break;
+    case LV_KEY_DOWN:  if (g_field < 8) g_field++; show_editor(g_edit_idx); break;
     case LV_KEY_LEFT:  editor_toggle(p, -1); show_editor(g_edit_idx); break;
     case LV_KEY_RIGHT: editor_toggle(p, +1); show_editor(g_edit_idx); break;
     case LV_KEY_ENTER:
@@ -368,8 +377,8 @@ static void connect_profile(int i)
     const profile_t *p = config_get(i);
     if (!p) return;
     g_cur_pidx = i;
-    if (p->vpn[0] && vpn_up(p->vpn) != 0) {     /* VPN failed -> ask */
-        char m[80]; snprintf(m, sizeof(m), "%s did not come up", p->vpn);
+    if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p->vpn_type, p->vpn) != 0) {
+        char m[80]; snprintf(m, sizeof(m), "%s VPN did not come up", p->vpn_type);
         open_dialog(SCR_PROFILES, COL_RED, "VPN failed", m, "Connect anyway", do_connect_now);
         return;
     }
