@@ -19,6 +19,8 @@ typedef struct {
 
 void              config_load(void);          /* load (or seed defaults) */
 int               config_save(void);          /* 0 ok, -1 fail */
+int               config_lang(void);          /* 0 = en, 1 = ja */
+void              config_set_lang(int lang);  /* persists on next save */
 int               config_count(void);
 const profile_t  *config_get(int i);          /* NULL if out of range */
 profile_t        *config_mutable(int i);      /* for the editor */

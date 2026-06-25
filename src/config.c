@@ -8,6 +8,10 @@
 static profile_t s_prof[CFG_MAX_PROFILES];
 static int       s_count = 0;
 static int       s_loaded = 0;
+static int       s_lang = 0;    /* 0 = en, 1 = ja */
+
+int  config_lang(void) { return s_lang; }
+void config_set_lang(int lang) { s_lang = lang ? 1 : 0; }
 
 static const char *conf_path(void)
 {
@@ -73,6 +77,7 @@ void config_load(void)
         val[strcspn(val, "\r\n")] = 0;
 
         if (!strcmp(key, "profiles")) continue;     /* count is implicit */
+        if (!strcmp(key, "lang")) { s_lang = !strcmp(val, "ja"); continue; }
         /* keys look like "p3.host" */
         if (key[0] != 'p') continue;
         int idx = atoi(key + 1);
@@ -90,6 +95,7 @@ int config_save(void)
     FILE *f = fopen(conf_path(), "w");
     if (!f) return -1;
     fprintf(f, "profiles=%d\n", s_count);
+    fprintf(f, "lang=%s\n", s_lang ? "ja" : "en");
     for (int i = 0; i < s_count; i++) {
         profile_t *p = &s_prof[i];
         fprintf(f, "p%d.name=%s\n",  i, p->name);

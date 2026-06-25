@@ -1,8 +1,8 @@
 # ssh_term 取扱説明書
 
-CardputerZero（Raspberry Pi CM0 / Linux, 320×170）用の **SSH / telnet / ローカルシェル** 端末です。
-接続先プロファイル・VPN・セッションログ・設定ファイル流し込み（文字コード自動認識）・日本語入力・
-フォントサイズ変更に対応します。
+**M5CardputerZero**（AArch64 Linux / Raspberry Pi OS, 320×170）用の **SSH / telnet / ローカルシェル** 端末です。
+接続先プロファイル・VPN・セッションログ・**ファイル流し込み**（任意のテキストを文字コード自動認識して送出）・
+日本語入力・フォントサイズ変更に対応します。
 
 > 画面は本体スキン付きエミュレータの画面（アカウント情報はマスク）。
 
@@ -78,7 +78,7 @@ CardputerZero（Raspberry Pi CM0 / Linux, 320×170）用の **SSH / telnet / ロ
 
 | 項目 | 動作 |
 |------|------|
-| Send file (config)... | 設定ファイルを流し込む（→ 6章） |
+| Send file... | ファイル（設定/スクリプト/任意テキスト）を流し込む（→ 6章） |
 | Font size `< 12px >` | フォントサイズを実行中に変更 |
 | Toggle log | ログ保存のON/OFF |
 | Close session | セッション終了→一覧へ |
@@ -88,9 +88,10 @@ CardputerZero（Raspberry Pi CM0 / Linux, 320×170）用の **SSH / telnet / ロ
 
 ---
 
-## 6. 設定ファイルの流し込み（文字コード自動認識）
+## 6. ファイルの流し込み（文字コード自動認識）
 
-Session Menu →「Send file」でファイルを選びます。
+ローカルのテキストファイル（機器設定・スクリプト・コマンド列・メモ等、**設定ファイルに限りません**）を、
+端末にそのまま打ち込んだように送出します。Session Menu →「Send file」でファイルを選びます。
 
 ![ファイルブラウザ](manual/5_files.png)
 
@@ -100,7 +101,7 @@ Session Menu →「Send file」でファイルを選びます。
 
 - **Detected**：文字コードを自動判定（例 `Shift_JIS`）。
 - **Send as**：`UTF-8` へ自動変換して送出（SJIS/EUC/raw も可）。
-- `Enter`で送出開始（行ごとにペース送出。網機器のCLIへ設定を流し込む用途）。`ESC`で取消。
+- `Enter`で送出開始（行ごとにペース送出。網機器のCLIへ設定を流す、スクリプトを貼る 等）。`ESC`で取消。
 
 ---
 
@@ -190,7 +191,7 @@ VPN起動に失敗した時も同様のダイアログで「Connect anyway（こ
 # Mac（エミュレータ、対話）
 cd ~/Projects/cardputerzero-ssh-term && ./build-emu.sh --run
 
-# 実機（arm64 Pi Zero 2W）
+# 実機（M5CardputerZero, arm64）
 ~/cardputer-zero/czpi/build.sh ~/Projects/cardputerzero-ssh-term
 ~/cardputer-zero/czpi/deploy-run.sh ssh_term --host pi@<IP>
 ```

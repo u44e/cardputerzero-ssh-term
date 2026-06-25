@@ -1,6 +1,6 @@
 # ssh_term — CardputerZero SSH / telnet / shell terminal
 
-A portable terminal for the CardputerZero (Raspberry Pi CM0 / Linux, LVGL 9.5,
+A portable terminal for the **M5CardputerZero** (AArch64 Linux / Raspberry Pi OS, LVGL 9.5,
 320×170). SSH / telnet / local-shell sessions with connection profiles, VPN,
 session logging, config-file injection (charset auto-detect), and Japanese input.
 
@@ -18,7 +18,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | **Font size** (per-profile + live via menu / editor Size field) 12/16/20px | ✅ working |
 | Status bar (name / CONNECTED / REC / SIDE) | ✅ working |
 | Session logging (raw tee) + log browser (ANSI-stripped, scrollable) | ✅ working |
-| Config file injection: **charset auto-detect → iconv → paced send** + send dialog | ✅ working |
+| File injection (any text — configs, scripts, snippets): **charset auto-detect → iconv → paced send** + dialog | ✅ working |
 | Session menu + file browser (Send file) + **confirm dialog** (delete / VPN-fail) | ✅ working |
 | Japanese IME: **OS IME (fcitx5-mozc / macOS) via SDL_TEXTINPUT** — kanji conversion | ✅ plumbed (needs IME running) |
 | Japanese IME: in-app **romaji → hiragana** fallback (no OS IME) | ✅ working |
@@ -43,7 +43,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 ```
 Requires: `brew install libvterm`, the emulator at `~/cardputer-zero/emulator`.
 
-### Device (arm64 Pi Zero 2W via czpi)
+### Device (M5CardputerZero, arm64, via czpi — a Pi Zero 2W also works as a dev rig)
 ```sh
 ~/cardputer-zero/czpi/build.sh  ~/Projects/cardputerzero-ssh-term   # -> out/libssh_term.so
 ~/cardputer-zero/czpi/deploy-run.sh ssh_term --host pi@<ip>

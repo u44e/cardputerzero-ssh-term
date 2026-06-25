@@ -20,7 +20,7 @@ INC_COMPAT=()
 
 # Phase 1: main.c + pty.c + term.c (PTY + libvterm). libvterm via pkg-config.
 clang -dynamiclib -O2 -std=gnu11 -arch arm64 -fPIC \
-  -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE -DAPP_EMU \
+  -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE -DAPP_EMU -DSSH_TERM_TEST_HOOKS \
   "${INC_COMPAT[@]}" \
   -I "$EMU" -I "$EMU/lib" -I "$EMU/lib/lvgl" -I "$APP/emu" \
   $(pkg-config --cflags sdl2) $(pkg-config --cflags vterm) \

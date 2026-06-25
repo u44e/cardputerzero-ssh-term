@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "app_name": "SSH Terminal",
   "bin_name": "ssh_term",
-  "description": "SSH/telnet terminal with connection profiles, VPN, session logs, config file injection and Japanese (mozc) input",
+  "description": "SSH/telnet/shell terminal for M5CardputerZero — profiles, VPN, session logs, file injection (charset auto-detect), Japanese input, font-size, EN/JA UI",
   "runtime": "lvgl-dlopen",
   "lvgl_version": "9.5",
   "entry": "app_main",

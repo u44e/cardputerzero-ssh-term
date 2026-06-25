@@ -140,7 +140,8 @@ static void render_cb(lv_timer_t *t)
     pthread_mutex_unlock(&g.mtx);
 }
 
-/* headless self-test: type g.test through the real key path */
+#if defined(SSH_TERM_TEST_HOOKS)
+/* headless self-test: type g.test through the real key path (emulator/CI only) */
 static void test_cb(lv_timer_t *t)
 {
     for (const char *p = g.test; p && *p; p++) {
@@ -150,6 +151,7 @@ static void test_cb(lv_timer_t *t)
     lv_timer_delete(t);
     g.test_timer = NULL;
 }
+#endif
 
 /* create the cursor on g.parent (row run-labels are built per-frame in render) */
 static void build_grid(void)
@@ -223,8 +225,10 @@ void term_create(lv_obj_t *parent, const char *const argv[],
 
     /* test hook: TERM_TEST="echo hi\n" feeds chars via term_feed_key() once the
      * shell is up, to verify the key->PTY->shell->render path headlessly. */
+#if defined(SSH_TERM_TEST_HOOKS)
     g.test = getenv("TERM_TEST");
     if (g.test) g.test_timer = lv_timer_create(test_cb, 700, NULL);
+#endif
 }
 
 void term_feed_key(uint32_t key)

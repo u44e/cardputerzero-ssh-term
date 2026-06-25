@@ -1,10 +1,11 @@
-# 実機(Pi Zero 2W)ブリングアップ手順 — 2026年11月以降に実施
+# 実機(M5CardputerZero)ブリングアップ手順 — 2026年11月以降に実施
 
 Mac側の実装・検証は完了済み。残るは**実機でしか確認できない項目**のみ。
 このチェックリスト順に進めれば、迷わず再開できる。
 
 ## 0. 前提
-- Pi Zero 2W を headless セットアップ（cloud-init NoCloud、2.4GHz Wi-Fi。`pi-zero2w-headless-cloudinit` メモリ参照）。
+- **M5CardputerZero**（Raspberry Pi OS / AArch64）を起動。※手元検証を Pi Zero 2W 代替機で行う場合は
+  headless cloud-init NoCloud（2.4GHz Wi-Fi。`pi-zero2w-headless-cloudinit` メモリ参照）。
 - ホストにフォントが常駐していること: `/usr/share/APPLaunch/share/font/LiberationMono-Regular.ttf` と
   `AlibabaPuHuiTi-3-55-Regular.ttf`（APPLaunch導入で入る）。無ければ別途配置。
 

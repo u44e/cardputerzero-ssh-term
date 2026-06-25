@@ -18,8 +18,10 @@
 
 #if defined(APP_EMU)
 #define MONO_PATH "/System/Library/Fonts/Menlo.ttc"
+#define UI_JP_PATH "/System/Library/Fonts/ヒラギノ角ゴシック W4.ttc"
 #else
 #define MONO_PATH "/usr/share/APPLaunch/share/font/LiberationMono-Regular.ttf"
+#define UI_JP_PATH "/usr/share/APPLaunch/share/font/AlibabaPuHuiTi-3-55-Regular.ttf"
 #endif
 
 #define COL_BG     0x1A1A2E
@@ -39,6 +41,7 @@ static lv_obj_t   *g_root;
 static int         g_scr = SCR_PROFILES;
 static int         g_sel = 0;
 static int         g_cur_pidx = 0;         /* profile of the live session */
+static int         g_lang = 0;             /* 0 = en, 1 = ja */
 static lv_group_t *g_grp;
 static lv_obj_t   *g_cap;
 static lv_timer_t *g_watch;
@@ -100,6 +103,26 @@ static void load_font_idx(int idx)
     }
 }
 
+/* ---------------- i18n ---------------- */
+static const char *tr(const char *en, const char *ja) { return g_lang ? ja : en; }
+
+/* UI font: Montserrat for en; a CJK font (freetype) for ja so Japanese renders.
+ * Falls back to Montserrat (tofu) if the CJK font is unavailable. */
+static const lv_font_t *ui_font(int px)
+{
+    static const lv_font_t *jp14, *jp12;
+    if (g_lang) {
+        const lv_font_t **slot = (px >= 14) ? &jp14 : &jp12;
+        if (!*slot) {
+            lv_freetype_init(256);
+            *slot = lv_freetype_font_create(UI_JP_PATH, LV_FREETYPE_FONT_RENDER_MODE_BITMAP,
+                                            px >= 14 ? 14 : 12, LV_FREETYPE_FONT_STYLE_NORMAL);
+        }
+        if (*slot) return *slot;
+    }
+    return px >= 14 ? &lv_font_montserrat_14 : &lv_font_montserrat_12;
+}
+
 /* ---------------- helpers ---------------- */
 static lv_obj_t *mklabel(const lv_font_t *f, uint32_t color, int x, int y, const char *txt)
 {
@@ -151,9 +174,9 @@ static void show_profiles(void)
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
-    mklabel(&lv_font_montserrat_14, COL_TITLE, 8, 5, "Sessions");
+    mklabel(ui_font(14), COL_TITLE, 8, 5, tr("Sessions","セッション"));
     char cnt[16]; snprintf(cnt, sizeof(cnt), "%d", config_count());
-    lv_obj_t *c = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0, cnt);
+    lv_obj_t *c = mklabel(ui_font(12), COL_DIM, 0, 0, cnt);
     lv_obj_align(c, LV_ALIGN_TOP_RIGHT, -8, 8);
 
     int top = 28, rh = 22, n = config_count();
@@ -165,22 +188,23 @@ static void show_profiles(void)
             mkrect(COL_HILITE, 0, y - 1, 320, rh - 2);
             mkrect(COL_CYAN, 0, y - 1, 3, rh - 2);
         }
-        mklabel(&lv_font_montserrat_14, COL_TEXT, 12, y + 2, p->name);
+        mklabel(ui_font(14), COL_TEXT, 12, y + 2, p->name);
         char meta[180];
         if (!strcmp(p->proto, "shell")) snprintf(meta, sizeof(meta), "shell");
         else snprintf(meta, sizeof(meta), "%s  %s%s%s:%s", p->proto,
                       p->user, p->user[0] ? "@" : "", p->host, p->port);
-        lv_obj_t *m = mklabel(&lv_font_montserrat_12, COL_DIM, 150, y + 3, meta);
+        lv_obj_t *m = mklabel(ui_font(12), COL_DIM, 150, y + 3, meta);
         if (!strcmp(p->proto, "telnet")) lv_obj_set_style_text_color(m, lv_color_hex(COL_AMBER), 0);
-        if (p->log) { lv_obj_t *L = mklabel(&lv_font_montserrat_12, COL_AMBER, 0, 0, "L");
+        if (p->log) { lv_obj_t *L = mklabel(ui_font(12), COL_AMBER, 0, 0, "L");
                       lv_obj_align(L, LV_ALIGN_TOP_RIGHT, -8, y + 3); }
         if (p->vpn_type[0] && strcmp(p->vpn_type, "none")) {
-            lv_obj_t *V = mklabel(&lv_font_montserrat_12, COL_GREEN, 0, 0, "V");
+            lv_obj_t *V = mklabel(ui_font(12), COL_GREEN, 0, 0, "V");
             lv_obj_align(V, LV_ALIGN_TOP_RIGHT, p->log ? -24 : -8, y + 3); }
     }
 
-    lv_obj_t *guide = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0,
-                              "Up/Dn  Enter:conn  e:edit  n:new  d:del  l:logs");
+    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
+                              tr("Up/Dn  Enter  e:edit  n:new  d:del  l:logs  g:日本語",
+                                 "上下 Enter:接続 e:編集 n:新規 d:削除 l:ログ g:English"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -188,9 +212,12 @@ static void show_profiles(void)
 /* ---------------- editor ---------------- */
 static const char *field_label(int f)
 {
-    switch (f) { case 0: return "Name"; case 1: return "Host"; case 2: return "Port";
-    case 3: return "User"; case 4: return "Proto"; case 5: return "VPN type";
-    case 6: return "VPN cfg"; case 7: return "Log"; case 8: return "Size"; }
+    switch (f) {
+    case 0: return tr("Name","名前");   case 1: return tr("Host","ホスト");
+    case 2: return tr("Port","ポート"); case 3: return tr("User","ユーザ");
+    case 4: return tr("Proto","接続種別"); case 5: return tr("VPN type","VPN方式");
+    case 6: return tr("VPN cfg","VPN設定"); case 7: return tr("Log","ログ");
+    case 8: return tr("Size","文字サイズ"); }
     return "?";
 }
 static void field_value(profile_t *p, int f, char *out, size_t n)
@@ -202,8 +229,8 @@ static void field_value(profile_t *p, int f, char *out, size_t n)
     case 3: snprintf(out, n, "%s", p->user); break;
     case 4: snprintf(out, n, "< %s >", p->proto); break;
     case 5: snprintf(out, n, "< %s >", p->vpn_type[0] ? p->vpn_type : "none"); break;
-    case 6: snprintf(out, n, "%s", p->vpn[0] ? p->vpn : "(none)"); break;
-    case 7: snprintf(out, n, "[%s] save session log", p->log ? "x" : " "); break;
+    case 6: snprintf(out, n, "%s", p->vpn[0] ? p->vpn : tr("(none)","(なし)")); break;
+    case 7: snprintf(out, n, tr("[%s] save session log","[%s] セッションログ保存"), p->log ? "x" : " "); break;
     case 8: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
     }
 }
@@ -228,14 +255,14 @@ static void show_editor(int idx)
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     profile_t *p = config_mutable(idx);
-    char title[64]; snprintf(title, sizeof(title), "Edit: %s", p ? p->name : "?");
-    mklabel(&lv_font_montserrat_14, COL_TITLE, 8, 4, title);
+    char title[64]; snprintf(title, sizeof(title), tr("Edit: %s","編集: %s"), p ? p->name : "?");
+    mklabel(ui_font(14), COL_TITLE, 8, 4, title);
 
     int top = 24, rh = 14;
     for (int f = 0; f < 9; f++) {
         int y = top + f * rh;
         if (f == g_field) { mkrect(COL_HILITE, 0, y, 320, rh - 1); mkrect(COL_CYAN, 0, y, 3, rh - 1); }
-        mklabel(&lv_font_montserrat_12, f == g_field ? COL_TEXT : COL_DIM, 12, y + 1, field_label(f));
+        mklabel(ui_font(12), f == g_field ? COL_TEXT : COL_DIM, 12, y + 1, field_label(f));
         char val[160];
         if (g_editing && f == g_field && field_is_text(f)) {
             snprintf(val, sizeof(val), "%s_", g_ebuf);
@@ -243,12 +270,12 @@ static void show_editor(int idx)
             field_value(p, f, val, sizeof(val));
         }
         uint32_t vc = (f == 4 || f == 5 || f == 7 || f == 8) ? COL_CYAN : COL_TEXT;
-        mklabel(&lv_font_montserrat_12, vc, 92, y + 1, val);
+        mklabel(ui_font(12), vc, 92, y + 1, val);
     }
 
-    lv_obj_t *guide = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0,
-        g_editing ? "type...  Enter:ok  ESC:cancel"
-                  : "Up/Dn  Enter:edit  Left/Right:toggle  s:save  ESC:back");
+    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
+        g_editing ? tr("type...  Enter:ok  ESC:cancel","入力...  Enter:確定  ESC:取消")
+                  : tr("Up/Dn  Enter:edit  Left/Right:toggle  s:save  ESC:back","上下:項目 Enter:編集 左右:切替 s:保存 ESC:戻る"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -318,10 +345,11 @@ static void key_profiles(uint32_t k)
         if (k == 'e' && n > 0) { g_field = 0; g_editing = 0; show_editor(g_sel); }
         else if (k == 'n') { int i = config_add(); if (i >= 0) { g_sel = i; g_field = 0; g_editing = 0; show_editor(i); } }
         else if (k == 'd' && n > 0) {
-            char m[80]; snprintf(m, sizeof(m), "Delete \"%s\" ?", config_get(g_sel)->name);
-            open_dialog(SCR_PROFILES, COL_RED, "Confirm", m, "Delete", do_delete_cb);
+            char m[80]; snprintf(m, sizeof(m), tr("Delete \"%s\" ?","\"%s\" を削除?"), config_get(g_sel)->name);
+            open_dialog(SCR_PROFILES, COL_RED, tr("Confirm","確認"), m, tr("Delete","削除"), do_delete_cb);
         }
         else if (k == 'l') { g_log_sel = 0; show_logs(); }
+        else if (k == 'g') { g_lang = !g_lang; config_set_lang(g_lang); config_save(); show_profiles(); }
         break;
     }
 }
@@ -335,10 +363,10 @@ static void add_status_bar(const profile_t *p, int logging)
     mkrect(0x0A0A10, 0, by, 320, 170 - by);
     mkrect(COL_DIM, 0, by, 320, 1);
     char s[96];
-    snprintf(s, sizeof(s), "%s   CONNECTED%s   SIDE=menu",
-             p->name, logging ? "   REC" : "");
+    snprintf(s, sizeof(s), tr("%s   CONNECTED%s   SIDE=menu","%s   接続中%s   SIDE=メニュー"),
+             p->name, logging ? tr("   REC","   録画") : "");
     g_status = lv_label_create(g_root);
-    lv_obj_set_style_text_font(g_status, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(g_status, ui_font(12), 0);
     lv_obj_set_style_text_color(g_status, lv_color_hex(COL_GREEN), 0);
     lv_obj_set_pos(g_status, 6, by + 2);
     lv_label_set_text(g_status, s);
@@ -362,7 +390,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     add_status_bar(p, p->log);
 
     g_preedit = lv_label_create(g_root);
-    lv_obj_set_style_text_font(g_preedit, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(g_preedit, ui_font(12), 0);
     lv_obj_set_style_text_color(g_preedit, lv_color_hex(COL_AMBER), 0);
     lv_obj_align(g_preedit, LV_ALIGN_BOTTOM_LEFT, 4, -18);
     lv_label_set_text(g_preedit, "");
@@ -378,8 +406,8 @@ static void connect_profile(int i)
     if (!p) return;
     g_cur_pidx = i;
     if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p->vpn_type, p->vpn) != 0) {
-        char m[80]; snprintf(m, sizeof(m), "%s VPN did not come up", p->vpn_type);
-        open_dialog(SCR_PROFILES, COL_RED, "VPN failed", m, "Connect anyway", do_connect_now);
+        char m[80]; snprintf(m, sizeof(m), tr("%s VPN did not come up","%s VPN を確立できませんでした"), p->vpn_type);
+        open_dialog(SCR_PROFILES, COL_RED, tr("VPN failed","VPN失敗"), m, tr("Connect anyway","このまま接続"), do_connect_now);
         return;
     }
     do_connect_now();
@@ -392,11 +420,11 @@ static void show_logs(void)
     lv_obj_clean(g_root);
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
-    mklabel(&lv_font_montserrat_14, COL_TITLE, 8, 5, "Logs");
+    mklabel(ui_font(14), COL_TITLE, 8, 5, tr("Logs","ログ"));
 
     int n = logsink_list_count();
-    char cnt[24]; snprintf(cnt, sizeof(cnt), "%d files", n);
-    lv_obj_t *c = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0, cnt);
+    char cnt[24]; snprintf(cnt, sizeof(cnt), tr("%d files","%d 件"), n);
+    lv_obj_t *c = mklabel(ui_font(12), COL_DIM, 0, 0, cnt);
     lv_obj_align(c, LV_ALIGN_TOP_RIGHT, -8, 8);
 
     int top = 28, rh = 20;
@@ -404,11 +432,11 @@ static void show_logs(void)
     for (int i = 0; i < n && i < 6; i++) {
         int y = top + i * rh;
         if (i == g_log_sel) { mkrect(COL_HILITE, 0, y - 1, 320, rh - 2); mkrect(COL_CYAN, 0, y - 1, 3, rh - 2); }
-        mklabel(&lv_font_montserrat_12, i == g_log_sel ? COL_TEXT : COL_DIM, 12, y + 1, logsink_list_name(i));
+        mklabel(ui_font(12), i == g_log_sel ? COL_TEXT : COL_DIM, 12, y + 1, logsink_list_name(i));
     }
-    if (n == 0) mklabel(&lv_font_montserrat_12, COL_DIM, 12, 32, "(no logs yet)");
+    if (n == 0) mklabel(ui_font(12), COL_DIM, 12, 32, tr("(no logs yet)","(ログなし)"));
 
-    lv_obj_t *guide = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0, "Up/Dn  Enter:view  d:del  ESC:back");
+    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr("Up/Dn  Enter:view  d:del  ESC:back","上下:選択 Enter:表示 d:削除 ESC:戻る"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -421,7 +449,7 @@ static void show_logview(int i)
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
     if (!g_mono) load_font_idx(0);
 
-    mklabel(&lv_font_montserrat_12, COL_TITLE, 6, 4, logsink_list_name(i));
+    mklabel(ui_font(12), COL_TITLE, 6, 4, logsink_list_name(i));
     lv_obj_t *ta = lv_textarea_create(g_root);
     lv_obj_set_style_text_font(ta, g_mono, 0);
     lv_obj_set_style_text_color(ta, lv_color_hex(COL_TEXT), 0);
@@ -437,7 +465,7 @@ static void show_logview(int i)
     lv_textarea_set_text(ta, buf);
     g_logview_ta = ta;
 
-    lv_obj_t *guide = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 0, "Up/Dn:scroll  ESC:back");
+    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr("Up/Dn:scroll  ESC:back","上下:スクロール ESC:戻る"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -2);
     attach_capture();
 }
@@ -489,9 +517,17 @@ static lv_obj_t *overlay_panel(int w, int h)
     return o;
 }
 
-static const char *MENU[] = { "Send file (config)...", "Font size", "Toggle log",
-                              "Close session", "Back" };
 #define MENU_N 5
+static const char *menu_label(int i)
+{
+    switch (i) {
+    case 0: return tr("Send file...","ファイル流し込み...");
+    case 2: return tr("Toggle log","ログ ON/OFF");
+    case 3: return tr("Close session","切断");
+    case 4: return tr("Back","戻る");
+    }
+    return "";
+}
 
 static void open_menu(void)   /* uses current g_menu_sel (caller resets for a fresh open) */
 {
@@ -499,18 +535,18 @@ static void open_menu(void)   /* uses current g_menu_sel (caller resets for a fr
     if (g_overlay) lv_obj_delete(g_overlay);
     g_overlay = overlay_panel(200, 124);
     lv_obj_t *t = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(COL_TITLE), 0);
     lv_obj_set_pos(t, 8, 4);
-    lv_label_set_text(t, "Session");
+    lv_label_set_text(t, tr("Session","セッション"));
     for (int i = 0; i < MENU_N; i++) {
         lv_obj_t *l = lv_label_create(g_overlay);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(l, ui_font(12), 0);
         lv_obj_set_style_text_color(l, lv_color_hex(i == g_menu_sel ? COL_TEXT : COL_DIM), 0);
         lv_obj_set_pos(l, 12, 24 + i * 18);
         char lbl[48];
-        if (i == 1) snprintf(lbl, sizeof(lbl), "Font size  < %dpx >", SIZES[g_size_idx]);
-        else        snprintf(lbl, sizeof(lbl), "%s", MENU[i]);
+        if (i == 1) snprintf(lbl, sizeof(lbl), tr("Font size  < %dpx >","文字サイズ < %dpx >"), SIZES[g_size_idx]);
+        else        snprintf(lbl, sizeof(lbl), "%s", menu_label(i));
         lv_label_set_text(l, lbl);
     }
 }
@@ -531,13 +567,13 @@ static void open_files(void)
     if (g_overlay) lv_obj_delete(g_overlay);
     g_overlay = overlay_panel(300, 150);
     lv_obj_t *t = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(COL_TITLE), 0);
     lv_obj_set_pos(t, 8, 4);
-    lv_label_set_text(t, "Send file");
+    lv_label_set_text(t, tr("Send file","ファイル流し込み"));
     for (int i = 0; i < g_files_n && i < 6; i++) {
         lv_obj_t *l = lv_label_create(g_overlay);
-        lv_obj_set_style_text_font(l, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(l, ui_font(12), 0);
         lv_obj_set_style_text_color(l, lv_color_hex(i == g_file_sel ? COL_TEXT : COL_DIM), 0);
         lv_obj_set_pos(l, 12, 24 + i * 18);
         lv_label_set_text(l, g_files[i]);
@@ -546,7 +582,7 @@ static void open_files(void)
         lv_obj_t *l = lv_label_create(g_overlay);
         lv_obj_set_style_text_color(l, lv_color_hex(COL_DIM), 0);
         lv_obj_set_pos(l, 12, 24);
-        lv_label_set_text(l, "(empty)");
+        lv_label_set_text(l, tr("(empty)","(空)"));
     }
 }
 
@@ -574,29 +610,29 @@ static void open_send(void)   /* confirm dialog showing the auto-detected charse
     const char *bn = strrchr(g_send_path, '/'); bn = bn ? bn + 1 : g_send_path;
 
     lv_obj_t *t = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(COL_TITLE), 0);
-    lv_obj_set_pos(t, 8, 4); lv_label_set_text(t, "Send file");
+    lv_obj_set_pos(t, 8, 4); lv_label_set_text(t, tr("Send file","ファイル流し込み"));
 
     struct { const char *k, *v; uint32_t c; } rows[] = {
-        { "File",     bn,  COL_TEXT },
-        { "Detected", enc, COL_AMBER },
-        { "Send as",  "UTF-8  (auto-convert)", COL_CYAN },
+        { tr("File","ファイル"),     bn,  COL_TEXT },
+        { tr("Detected","文字コード"), enc, COL_AMBER },
+        { tr("Send as","送出形式"),  tr("UTF-8  (auto-convert)","UTF-8 へ自動変換"), COL_CYAN },
     };
     for (int i = 0; i < 3; i++) {
         lv_obj_t *kk = lv_label_create(g_overlay);
-        lv_obj_set_style_text_font(kk, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(kk, ui_font(12), 0);
         lv_obj_set_style_text_color(kk, lv_color_hex(COL_DIM), 0);
         lv_obj_set_pos(kk, 12, 28 + i * 18); lv_label_set_text(kk, rows[i].k);
         lv_obj_t *vv = lv_label_create(g_overlay);
-        lv_obj_set_style_text_font(vv, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(vv, ui_font(12), 0);
         lv_obj_set_style_text_color(vv, lv_color_hex(rows[i].c), 0);
         lv_obj_set_pos(vv, 88, 28 + i * 18); lv_label_set_text(vv, rows[i].v);
     }
     lv_obj_t *g = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(g, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(g, ui_font(12), 0);
     lv_obj_set_style_text_color(g, lv_color_hex(COL_DIM), 0);
-    lv_obj_set_pos(g, 12, 90); lv_label_set_text(g, "Enter Send   ESC Cancel");
+    lv_obj_set_pos(g, 12, 90); lv_label_set_text(g, tr("Enter Send   ESC Cancel","Enter:送出   ESC:取消"));
 }
 
 static void key_send(uint32_t k)
@@ -645,18 +681,18 @@ static void render_dialog(void)
     g_overlay = overlay_panel(244, 98);
     lv_obj_set_style_border_color(g_overlay, lv_color_hex(accent), 0);
     lv_obj_t *t = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(t, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(accent), 0);
     lv_obj_set_pos(t, 10, 6); lv_label_set_text(t, g_dlg_title);
     lv_obj_t *m = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(m, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(m, ui_font(12), 0);
     lv_obj_set_style_text_color(m, lv_color_hex(COL_TEXT), 0);
     lv_obj_set_pos(m, 12, 32); lv_label_set_text(m, g_dlg_msg);
-    const char *opts[2] = { g_dlg_yes_lbl, "Cancel" };
+    const char *opts[2] = { g_dlg_yes_lbl, tr("Cancel","取消") };
     int ox = 12;
     for (int i = 0; i < 2; i++) {
         lv_obj_t *o = lv_label_create(g_overlay);
-        lv_obj_set_style_text_font(o, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_font(o, ui_font(12), 0);
         lv_obj_set_style_text_color(o, lv_color_hex(i == g_dlg_sel ? COL_TEXT : COL_DIM), 0);
         if (i == g_dlg_sel) {
             lv_obj_set_style_bg_color(o, lv_color_hex(COL_HILITE), 0);
@@ -750,9 +786,13 @@ void app_main(lv_obj_t *parent)
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
     config_load();
+    g_lang = config_lang();
     show_profiles();
     g_watch = lv_timer_create(watch_cb, 400, NULL);
 
+#if defined(SSH_TERM_TEST_HOOKS)
+    /* Headless test hooks — emulator/CI only; NOT compiled into device builds. */
+    const char *el = getenv("UI_LANG"); if (el) g_lang = !strcmp(el, "ja");
     const char *ac = getenv("AUTO_CONNECT"); if (ac) connect_profile(atoi(ac));
     const char *ae = getenv("AUTO_EDIT");    if (ae) show_editor(atoi(ae));
     const char *al = getenv("AUTO_LOGS");    if (al) show_logs();
@@ -766,6 +806,7 @@ void app_main(lv_obj_t *parent)
     if (ai) { ime_toggle();
         for (const char *p = ai; *p; p++) ime_key((uint32_t)(unsigned char)*p, ime_commit_cb);
         ime_key(LV_KEY_ENTER, ime_commit_cb); }
+#endif
 }
 
 void app_event(int type, void *data)

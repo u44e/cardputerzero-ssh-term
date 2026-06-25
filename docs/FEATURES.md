@@ -1,6 +1,6 @@
 # ssh_term 機能一覧
 
-CardputerZero（Raspberry Pi CM0 / Linux / LVGL 9.5, 320×170）向け SSH/telnet/shell ターミナル。
+**M5CardputerZero**（AArch64 Linux / Raspberry Pi OS / LVGL 9.5, 320×170）向け SSH/telnet/shell ターミナル。
 凡例: ✅ 実装・emで検証済 / ◐ 一部（実機で全対応）/ ⏳ 実機でのみ動作・未検証 / ➖ 仕様上あえて
 
 ## ターミナルコア
@@ -51,7 +51,8 @@ CardputerZero（Raspberry Pi CM0 / Linux / LVGL 9.5, 320×170）向け SSH/telne
 | ログ一覧（mtime降順）＋閲覧（**ANSI除去**・スクロール）・削除 | ✅ |
 | 実行中ログON/OFF（メニュー Toggle log） | ✅ |
 
-## 設定ファイル流し込み（config injection）
+## ファイル流し込み（file injection）
+任意のテキストファイル（機器設定・スクリプト・コマンド列・メモ等。**設定ファイルに限らない**）を端末へ送出。
 | 機能 | 状態 |
 |------|:--:|
 | **文字コード自動判定**（内蔵ヒューリスティック：UTF-8 / Shift_JIS / EUC-JP / ascii） | ✅ |
@@ -75,7 +76,7 @@ CardputerZero（Raspberry Pi CM0 / Linux / LVGL 9.5, 320×170）向け SSH/telne
 | 項目 | 状態 |
 |------|:--:|
 | **macOSエミュレータ**（`./build-emu.sh --run`、cardputer-emu、ヘッドレス `EMU_SHOT`） | ✅ |
-| **arm64 Pi Zero 2W**（`czpi/build.sh`→ELF aarch64 `.so`、`deploy-run.sh`） | ✅(ビルド) / ⏳(実機) |
+| **arm64 実機 M5CardputerZero**（`czpi/build.sh`→ELF aarch64 `.so`、`deploy-run.sh`。Pi Zero 2W検証機も可） | ✅(ビルド) / ⏳(実機) |
 | lvgl-dlopen アプリ（`cz_app.h` ABI：app_main/app_event/ui_init） | ✅ |
 
 ## 設計・ライセンス
