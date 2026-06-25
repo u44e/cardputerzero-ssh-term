@@ -29,6 +29,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 
 ## Documentation
 - **[取扱説明書 (User manual)](docs/MANUAL.md)** — 画面付き / illustrated per-screen ([PDF](docs/MANUAL.pdf))
+- **[実機セットアップ手順 (Setup guide)](docs/SETUP.md)** — Mac→M5CardputerZero ([PDF](docs/SETUP.pdf))
 - [機能一覧 (Feature list)](docs/FEATURES.md)
 - [画面仕様 / mockups](docs/SCREENS.md)
 - [実機ブリングアップ手順 (device checklist)](docs/DEVICE_CHECKLIST.md)
