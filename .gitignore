@@ -1,0 +1,15 @@
+# build artifacts
+build-emu/
+*.o
+*.so
+*.dylib
+*.bmp
+
+# downloaded fonts (mockup tool only; not redistributed — see docs/fonts/README.md)
+docs/fonts/*.ttf
+docs/fonts/*.ttc
+docs/fonts/*.otf
+
+# misc
+.DS_Store
+*.swp
