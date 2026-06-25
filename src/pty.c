@@ -15,6 +15,10 @@
 #include <util.h>   /* forkpty() on macOS */
 #else
 #include <pty.h>    /* forkpty() on Linux  */
+/* Some build setups force-include libc headers before _GNU_SOURCE takes effect,
+ * so <pty.h> may not declare forkpty(). Declare it explicitly (glibc signature). */
+extern int forkpty(int *amaster, char *name,
+                   const struct termios *termp, const struct winsize *winp);
 #endif
 
 int pty_open(pty_t *p, const char *const argv[], int cols, int rows)

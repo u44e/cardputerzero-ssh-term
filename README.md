@@ -20,8 +20,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | Session logging (raw tee) + log browser (ANSI-stripped, scrollable) | ✅ working |
 | File injection (any text — configs, scripts, snippets): **charset auto-detect → iconv → paced send** + dialog | ✅ working |
 | Session menu + file browser (Send file) + **confirm dialog** (delete / VPN-fail) | ✅ working |
-| Japanese IME: **OS IME (fcitx5-mozc / macOS) via SDL_TEXTINPUT** — kanji conversion | ✅ plumbed (needs IME running) |
-| Japanese IME: in-app **romaji → hiragana** fallback (no OS IME) | ✅ working |
+| Japanese input: **OS IME (fcitx5-mozc) via SDL_TEXTINPUT** — system toggle (Ctrl+Space), same as other apps; no in-app IME | ✅ plumbed (needs IME running) |
 | **VPN type selector** (iPhone-style): WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale | ✅ UI + per-type commands (exec device-only) |
 | VPN readiness probe (getifaddrs) + teardown | ✅ probe / ⏳ exec is device-only |
 | Connecting overlay (VPN→probe→ssh staged) | ⏳ not yet (cosmetic) |

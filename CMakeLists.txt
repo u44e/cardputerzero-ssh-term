@@ -25,7 +25,6 @@ cz_add_lvgl_app(ssh_term NO_KBD_STUBS
         src/logsink.c
         src/sendfile.c
         src/vpn.c
-        src/ime.c
 )
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(VTERM REQUIRED vterm)

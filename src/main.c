@@ -14,7 +14,6 @@
 #include "logsink.h"
 #include "sendfile.h"
 #include "vpn.h"
-#include "ime.h"
 
 #if defined(APP_EMU)
 #define MONO_PATH "/System/Library/Fonts/Menlo.ttc"
@@ -48,7 +47,6 @@ static lv_timer_t *g_watch;
 
 static const lv_font_t *g_mono;
 static int g_cols = 45, g_rows = 12, g_cw = 7, g_ch = 12;
-static lv_obj_t   *g_preedit;              /* IME preedit label (terminal) */
 static lv_obj_t   *g_overlay;              /* menu/dialog/send/files overlay */
 static lv_obj_t   *g_logview_ta;           /* log viewer scrollable textarea */
 
@@ -388,14 +386,8 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     if (p->log) logsink_open(p->name);
     term_create(g_root, argv, g_mono, g_cols, g_rows, g_cw, g_ch);
     add_status_bar(p, p->log);
-
-    g_preedit = lv_label_create(g_root);
-    lv_obj_set_style_text_font(g_preedit, ui_font(12), 0);
-    lv_obj_set_style_text_color(g_preedit, lv_color_hex(COL_AMBER), 0);
-    lv_obj_align(g_preedit, LV_ALIGN_BOTTOM_LEFT, 4, -18);
-    lv_label_set_text(g_preedit, "");
-    lv_obj_add_flag(g_preedit, LV_OBJ_FLAG_HIDDEN);
-
+    /* Japanese input is handled by the OS IME (fcitx5-mozc): composed text
+     * arrives via SDL_TEXTINPUT and is forwarded to the PTY by term_feed_key. */
     attach_capture();
     g_scr = SCR_TERM;
 }
@@ -728,31 +720,12 @@ static void key_dialog(uint32_t k)
     }
 }
 
-/* ---------------- IME preedit overlay ---------------- */
-static void ime_commit_cb(const char *utf8, int n) { term_send_bytes(utf8, n); }
-
-static void update_preedit(void)
-{
-    if (!g_preedit) return;
-    if (ime_enabled()) {
-        char s[340]; snprintf(s, sizeof(s), "\xE3\x81\x82 %s", ime_preedit()); /* あ + preedit */
-        lv_label_set_text(g_preedit, s);
-        lv_obj_clear_flag(g_preedit, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(g_preedit, LV_OBJ_FLAG_HIDDEN);
-    }
-}
-
 /* ---------------- key dispatch ---------------- */
 void key_cb(lv_event_t *e)
 {
     uint32_t k = lv_event_get_key(e);
     switch (g_scr) {
-    case SCR_TERM:
-        if (k == '`') { ime_toggle(); update_preedit(); break; }   /* IME on/off */
-        if (ime_enabled() && ime_key(k, ime_commit_cb)) { update_preedit(); break; }
-        term_feed_key(k);
-        break;
+    case SCR_TERM:     term_feed_key(k); break;   /* all keys (incl. OS-IME text) -> PTY */
     case SCR_PROFILES: key_profiles(k); break;
     case SCR_EDITOR:   key_editor(k); break;
     case SCR_LOGS:     key_logs(k); break;
@@ -802,10 +775,6 @@ void app_main(lv_obj_t *parent)
     const char *af = getenv("AUTO_FILES");    if (af) open_files();
     const char *ad = getenv("AUTO_SENDDLG"); if (ad) { snprintf(g_send_path, sizeof(g_send_path), "%s", ad); open_send(); }
     const char *ak = getenv("AUTO_KEY"); if (ak) for (const char *p = ak; *p; p++) key_profiles((uint32_t)(unsigned char)*p);
-    const char *ai = getenv("AUTO_IME");
-    if (ai) { ime_toggle();
-        for (const char *p = ai; *p; p++) ime_key((uint32_t)(unsigned char)*p, ime_commit_cb);
-        ime_key(LV_KEY_ENTER, ime_commit_cb); }
 #endif
 }
 

@@ -39,10 +39,10 @@
 | Ctrl系：emは制御文字一部、実機は `LV_EVENT_KEYBOARD`(key_item)修飾で全対応 | ◐ |
 
 ## 日本語入力（IME）
+**他アプリと同じく OS IME（fcitx5-mozc）に一本化**。ON/OFF はシステムのIMEトグル（既定 Ctrl+Space）で、アプリ内IMEは持たない。
 | 機能 | 状態 |
 |------|:--:|
-| **OS IMEに委譲**（fcitx5-mozc / macOS）：`SDL_TEXTINPUT`→確定かな漢字がそのままPTYへ（変換コード不要） | ✅(配線) / ⏳(実機mozc) |
-| アプリ内 **ローマ字→ひらがな** フォールバック（`` ` ``トグル、preedit＋確定、OS IME無し環境用） | ✅ |
+| **OS IMEに委譲**：`SDL_TEXTINPUT`→確定かな漢字がそのままPTYへ（変換コード不要、候補窓はfcitx5が表示） | ✅(配線) / ⏳(実機mozc) |
 
 ## ログ
 | 機能 | 状態 |
@@ -70,7 +70,7 @@
 
 ## 画面（全10種）
 接続先一覧 / プロファイル編集 / ライブ端末 / Session Menu(オーバーレイ) / ファイルブラウザ /
-送出ダイアログ / ログ一覧 / ログ閲覧 / 確認ダイアログ / IME preedit。モック=`docs/SCREENS.md`・`docs/mockups/`。
+送出ダイアログ / ログ一覧 / ログ閲覧 / 確認ダイアログ。モック=`docs/SCREENS.md`・`docs/mockups/`。
 
 ## ビルド・プラットフォーム
 | 項目 | 状態 |
@@ -81,7 +81,7 @@
 
 ## 設計・ライセンス
 - **launcherコードは非流用**（無許諾のため機能のみ参照）。libvterm=MIT、フォントは実機常駐を読むだけ（再配布なし）。
-- 約1,750行 / 8モジュール：`main / pty / term / config / logsink / sendfile / vpn / ime`。
+- 7モジュール：`main / pty / term / config / logsink / sendfile / vpn`（IMEはOS委譲のため自前モジュール無し）。
 - GitHub: `github.com/u44e/cardputerzero-ssh-term`（private、`v0.0.1`）。
 
 ## 残（実機/低優先）
