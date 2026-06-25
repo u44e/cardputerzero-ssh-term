@@ -241,6 +241,10 @@ void term_feed_key(uint32_t key)
 {
     if (g.pty.fd < 0) return;
     char b[8]; int n = 0;
+    /* Emulator tags Ctrl-<key> with 0x40000000 so it doesn't collide with the
+     * LVGL nav keys below (Ctrl-C 0x03 vs LV_KEY_END, etc.). On the device the
+     * key_item modifier path will deliver the same control bytes. */
+    if (key & 0x40000000u) { b[0] = (char)(key & 0x1f); pty_write(&g.pty, b, 1); return; }
     switch (key) {
     case LV_KEY_ENTER:     b[0] = '\r'; n = 1; break;
     case LV_KEY_BACKSPACE: b[0] = 0x7f; n = 1; break;
@@ -277,8 +281,12 @@ void term_destroy(void)
     if (!g.inited) return;        /* idempotent: safe to call with no live session */
     g.inited = 0;
     g.running = 0;
-    if (g.pty.fd >= 0) pty_close(&g.pty);     /* unblock reader via EOF */
-    if (g.reader) pthread_join(g.reader, NULL);
+    /* Order matters: hang up the child first so the reader's blocking read()
+     * returns EOF, JOIN the reader, THEN close the fd. Closing the master while
+     * the reader is parked in read() on it deadlocks on macOS. */
+    pty_terminate(&g.pty);
+    if (g.reader) { pthread_join(g.reader, NULL); g.reader = 0; }
+    pty_close(&g.pty);
     if (g.timer) { lv_timer_delete(g.timer); g.timer = NULL; }
     if (g.vt) { vterm_free(g.vt); g.vt = NULL; }
     pthread_mutex_destroy(&g.mtx);

@@ -26,7 +26,11 @@ void pty_resize(pty_t *p, int cols, int rows);
 /* 1 = child still running, 0 = exited (fills *exit_status if non-NULL). */
 int  pty_alive(pty_t *p, int *exit_status);
 
-/* Close the PTY and hang up the child. */
+/* Hang up the child (SIGHUP) but keep the fd open — lets a blocking reader
+ * thread unblock (read returns EOF) so it can be joined before pty_close(). */
+void pty_terminate(pty_t *p);
+
+/* Close the PTY, hang up and reap the child. */
 void pty_close(pty_t *p);
 
 #endif /* SSH_TERM_PTY_H */

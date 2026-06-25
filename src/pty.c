@@ -77,9 +77,17 @@ int pty_alive(pty_t *p, int *exit_status)
     return 0;                      /* exited (or error) */
 }
 
+/* Hang up the child (SIGHUP) WITHOUT closing the master fd, so the reader
+ * thread's blocking read() returns and it can be joined before we close the fd.
+ * Closing a fd while another thread read()s it deadlocks on macOS. */
+void pty_terminate(pty_t *p)
+{
+    if (p && p->pid > 0) kill(p->pid, SIGHUP);
+}
+
 void pty_close(pty_t *p)
 {
     if (!p) return;
     if (p->fd >= 0) { close(p->fd); p->fd = -1; }
-    if (p->pid > 0) { kill(p->pid, SIGHUP); p->pid = -1; }
+    if (p->pid > 0) { kill(p->pid, SIGHUP); waitpid(p->pid, NULL, 0); p->pid = -1; }
 }

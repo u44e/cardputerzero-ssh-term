@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include "config.h"
 #include "term.h"
 #include "logsink.h"
@@ -65,6 +66,7 @@ static void show_editor(int idx);
 static void show_logs(void);
 static void connect_profile(int i);
 static void open_send(void);
+static void open_files(void);
 static void open_dialog(int prev, uint32_t accent, const char *title,
                         const char *msg, const char *yeslbl, void (*onyes)(void));
 
@@ -216,40 +218,71 @@ static void show_profiles(void)
     attach_capture();
 }
 
-/* ---------------- editor ---------------- */
-static const char *field_label(int f)
+/* ---------------- editor (fields vary by VPN type, iPhone-style) ---------------- */
+typedef struct {
+    const char *en, *ja;
+    int    kind;    /* 0=text 1=proto 2=vpntype 3=log 4=size */
+    char  *buf;     /* text storage (kind 0) */
+    size_t sz;
+    int    secret;  /* mask the value (password/secret) */
+} efield_t;
+static efield_t g_ef[16];
+static int      g_efn = 0;
+
+static void build_fields(profile_t *p)
 {
-    switch (f) {
-    case 0: return tr("Name","名前");   case 1: return tr("Host","ホスト");
-    case 2: return tr("Port","ポート"); case 3: return tr("User","ユーザ");
-    case 4: return tr("Proto","接続種別"); case 5: return tr("VPN type","VPN方式");
-    case 6: return tr("VPN cfg","VPN設定"); case 7: return tr("Log","ログ");
-    case 8: return tr("Size","文字サイズ"); }
-    return "?";
+    int n = 0;
+#define EF(EN,JA,K,B,S,SEC) do{ g_ef[n].en=(EN); g_ef[n].ja=(JA); g_ef[n].kind=(K); \
+        g_ef[n].buf=(B); g_ef[n].sz=(S); g_ef[n].secret=(SEC); n++; }while(0)
+    EF("Name","名前",0,p->name,sizeof p->name,0);
+    EF("Host","ホスト",0,p->host,sizeof p->host,0);
+    EF("Port","ポート",0,p->port,sizeof p->port,0);
+    EF("User","ユーザ",0,p->user,sizeof p->user,0);
+    EF("Proto","接続種別",1,0,0,0);
+    EF("VPN type","VPN方式",2,0,0,0);
+    if (!strcmp(p->vpn_type, "wireguard")) {
+        EF("Config","設定",0,p->vpn,sizeof p->vpn,0);
+    } else if (!strcmp(p->vpn_type, "openvpn")) {
+        EF("Config","設定ファイル",0,p->vpn,sizeof p->vpn,0);
+        EF("User","ユーザ",0,p->vpn_user,sizeof p->vpn_user,0);
+        EF("Pass","パスワード",0,p->vpn_pass,sizeof p->vpn_pass,1);
+    } else if (!strcmp(p->vpn_type, "ikev2")) {
+        EF("Server","サーバ",0,p->vpn_server,sizeof p->vpn_server,0);
+        EF("Remote ID","リモートID",0,p->vpn,sizeof p->vpn,0);
+        EF("User","ユーザ",0,p->vpn_user,sizeof p->vpn_user,0);
+        EF("Pass","パスワード",0,p->vpn_pass,sizeof p->vpn_pass,1);
+    } else if (!strcmp(p->vpn_type, "l2tp")) {
+        EF("Server","サーバ",0,p->vpn_server,sizeof p->vpn_server,0);
+        EF("Account","アカウント",0,p->vpn_user,sizeof p->vpn_user,0);
+        EF("Pass","パスワード",0,p->vpn_pass,sizeof p->vpn_pass,1);
+        EF("Secret","シークレット",0,p->vpn_secret,sizeof p->vpn_secret,1);
+    } else if (!strcmp(p->vpn_type, "tailscale")) {
+        EF("Auth key","認証キー",0,p->vpn_secret,sizeof p->vpn_secret,1);
+    }
+    EF("Log","ログ",3,0,0,0);
+    EF("Size","文字サイズ",4,0,0,0);
+#undef EF
+    g_efn = n;
+}
+
+static const char *field_label(int f) { return tr(g_ef[f].en, g_ef[f].ja); }
+static int field_is_text(int f) { return g_ef[f].kind == 0; }
+static void field_set_text(int f, const char *v)
+{
+    if (g_ef[f].buf) snprintf(g_ef[f].buf, g_ef[f].sz, "%s", v);
 }
 static void field_value(profile_t *p, int f, char *out, size_t n)
 {
-    switch (f) {
-    case 0: snprintf(out, n, "%s", p->name); break;
-    case 1: snprintf(out, n, "%s", p->host); break;
-    case 2: snprintf(out, n, "%s", p->port); break;
-    case 3: snprintf(out, n, "%s", p->user); break;
-    case 4: snprintf(out, n, "< %s >", p->proto); break;
-    case 5: snprintf(out, n, "< %s >", p->vpn_type[0] ? p->vpn_type : "none"); break;
-    case 6: snprintf(out, n, "%s", p->vpn[0] ? p->vpn : tr("(none)","(なし)")); break;
-    case 7: snprintf(out, n, tr("[%s] save session log","[%s] セッションログ保存"), p->log ? "x" : " "); break;
-    case 8: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
-    }
-}
-static int field_is_text(int f) { return f <= 3 || f == 6; }
-static void field_set_text(profile_t *p, int f, const char *v)
-{
-    switch (f) {
-    case 0: snprintf(p->name, sizeof(p->name), "%s", v); break;
-    case 1: snprintf(p->host, sizeof(p->host), "%s", v); break;
-    case 2: snprintf(p->port, sizeof(p->port), "%s", v); break;
-    case 3: snprintf(p->user, sizeof(p->user), "%s", v); break;
-    case 6: snprintf(p->vpn, sizeof(p->vpn), "%s", v); break;
+    efield_t *e = &g_ef[f];
+    switch (e->kind) {
+    case 1: snprintf(out, n, "< %s >", p->proto); break;
+    case 2: snprintf(out, n, "< %s >", p->vpn_type[0] ? p->vpn_type : "none"); break;
+    case 3: snprintf(out, n, tr("[%s] save session log","[%s] セッションログ保存"), p->log ? "x" : " "); break;
+    case 4: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
+    default:
+        if (e->secret && e->buf && e->buf[0]) snprintf(out, n, "********");
+        else snprintf(out, n, "%s", (e->buf && e->buf[0]) ? e->buf : tr("(none)","(なし)"));
+        break;
     }
 }
 
@@ -262,23 +295,27 @@ static void show_editor(int idx)
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     profile_t *p = config_mutable(idx);
-    char title[64]; snprintf(title, sizeof(title), tr("Edit: %s","編集: %s"), p ? p->name : "?");
+    if (!p) { show_profiles(); return; }
+    build_fields(p);
+    if (g_field >= g_efn) g_field = g_efn - 1;
+
+    char title[64]; snprintf(title, sizeof(title), tr("Edit: %s","編集: %s"), p->name);
     mklabel(ui_font(14), COL_TITLE, 8, 4, title);
 
     int top = 24, rh = 14;
-    for (int f = 0; f < 9; f++) {
-        int y = top + f * rh;
+    const int VIS = 9;
+    int start = g_field >= VIS ? g_field - VIS + 1 : 0;
+    for (int row = 0; row < VIS && start + row < g_efn; row++) {
+        int f = start + row, y = top + row * rh;
         if (f == g_field) { mkrect(COL_HILITE, 0, y, 320, rh - 1); mkrect(COL_CYAN, 0, y, 3, rh - 1); }
         mklabel(ui_font(12), f == g_field ? COL_TEXT : COL_DIM, 12, y + 1, field_label(f));
         char val[160];
-        if (g_editing && f == g_field && field_is_text(f)) {
-            snprintf(val, sizeof(val), "%s_", g_ebuf);
-        } else {
-            field_value(p, f, val, sizeof(val));
-        }
-        uint32_t vc = (f == 4 || f == 5 || f == 7 || f == 8) ? COL_CYAN : COL_TEXT;
-        mklabel(ui_font(12), vc, 92, y + 1, val);
+        if (g_editing && f == g_field && field_is_text(f)) snprintf(val, sizeof(val), "%s_", g_ebuf);
+        else                                               field_value(p, f, val, sizeof(val));
+        mklabel(ui_font(12), g_ef[f].kind ? COL_CYAN : COL_TEXT, 92, y + 1, val);
     }
+    if (g_efn > VIS)   /* more fields than fit: hint */
+        mklabel(ui_font(12), COL_DIM, 0, 0, start + VIS < g_efn ? LV_SYMBOL_DOWN : LV_SYMBOL_UP);
 
     lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
         g_editing ? tr("type...  Enter:ok  ESC:cancel","入力...  Enter:確定  ESC:取消")
@@ -290,22 +327,21 @@ static void show_editor(int idx)
 
 static void editor_toggle(profile_t *p, int dir)
 {
-    if (g_field == 4) {
-        const char *seq[] = { "ssh", "telnet", "shell" };
-        int cur = 0;
+    switch (g_ef[g_field].kind) {
+    case 1: {
+        const char *seq[] = { "ssh", "telnet", "shell" }; int cur = 0;
         for (int i = 0; i < 3; i++) if (!strcmp(p->proto, seq[i])) cur = i;
-        cur = (cur + (dir >= 0 ? 1 : 2)) % 3;
-        snprintf(p->proto, sizeof(p->proto), "%s", seq[cur]);
-    } else if (g_field == 5) {                       /* VPN type (iPhone-style) */
+        snprintf(p->proto, sizeof(p->proto), "%s", seq[(cur + (dir >= 0 ? 1 : 2)) % 3]);
+        break; }
+    case 2: {
         int n = vpn_type_count(), cur = 0;
         for (int i = 0; i < n; i++) if (!strcmp(p->vpn_type, VPN_TYPES[i])) cur = i;
-        cur = (cur + (dir >= 0 ? 1 : n - 1)) % n;
-        snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", VPN_TYPES[cur]);
-    } else if (g_field == 7) {
-        p->log = !p->log;
-    } else if (g_field == 8) {
+        snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", VPN_TYPES[(cur + (dir >= 0 ? 1 : n - 1)) % n]);
+        break; }
+    case 3: p->log = !p->log; break;
+    case 4: {
         int idx = (size_to_idx(p->size) + (dir >= 0 ? 1 : 2)) % 3;
-        snprintf(p->size, sizeof(p->size), "%d", SIZES[idx]);
+        snprintf(p->size, sizeof(p->size), "%d", SIZES[idx]); break; }
     }
 }
 
@@ -313,9 +349,11 @@ static void key_editor(uint32_t k)
 {
     profile_t *p = config_mutable(g_edit_idx);
     if (!p) { show_profiles(); return; }
+    build_fields(p);
+    if (g_field >= g_efn) g_field = g_efn - 1;
 
     if (g_editing) {
-        if (k == LV_KEY_ENTER)      { field_set_text(p, g_field, g_ebuf); g_editing = 0; show_editor(g_edit_idx); }
+        if (k == LV_KEY_ENTER)      { field_set_text(g_field, g_ebuf); g_editing = 0; show_editor(g_edit_idx); }
         else if (k == LV_KEY_ESC)   { g_editing = 0; show_editor(g_edit_idx); }
         else if (k == LV_KEY_BACKSPACE) { size_t l = strlen(g_ebuf); if (l) g_ebuf[l-1] = 0; show_editor(g_edit_idx); }
         else if (k >= 0x20 && k < 0x7f) { size_t l = strlen(g_ebuf); if (l < sizeof(g_ebuf)-1) { g_ebuf[l]=(char)k; g_ebuf[l+1]=0; } show_editor(g_edit_idx); }
@@ -323,14 +361,14 @@ static void key_editor(uint32_t k)
     }
     switch (k) {
     case LV_KEY_UP:    if (g_field > 0) g_field--; show_editor(g_edit_idx); break;
-    case LV_KEY_DOWN:  if (g_field < 8) g_field++; show_editor(g_edit_idx); break;
+    case LV_KEY_DOWN:  if (g_field < g_efn - 1) g_field++; show_editor(g_edit_idx); break;
     case LV_KEY_LEFT:  editor_toggle(p, -1); show_editor(g_edit_idx); break;
     case LV_KEY_RIGHT: editor_toggle(p, +1); show_editor(g_edit_idx); break;
     case LV_KEY_ENTER:
-        if (field_is_text(g_field)) { char v[160]; field_value(p, g_field, v, sizeof(v));
-            snprintf(g_ebuf, sizeof(g_ebuf), "%s", g_field==5 && !strcmp(v,"(none)") ? "" : v);
-            g_editing = 1; show_editor(g_edit_idx); }
-        else editor_toggle(p, +1), show_editor(g_edit_idx);
+        if (field_is_text(g_field)) {
+            snprintf(g_ebuf, sizeof(g_ebuf), "%s", g_ef[g_field].buf ? g_ef[g_field].buf : "");
+            g_editing = 1; show_editor(g_edit_idx);
+        } else { editor_toggle(p, +1); show_editor(g_edit_idx); }
         break;
     case LV_KEY_ESC: show_profiles(); break;
     default:
@@ -408,7 +446,7 @@ static void connect_profile(int i)
     const profile_t *p = config_get(i);
     if (!p) return;
     g_cur_pidx = i;
-    if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p->vpn_type, p->vpn) != 0) {
+    if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p) != 0) {
         char m[80]; snprintf(m, sizeof(m), tr("%s VPN did not come up","%s VPN を確立できませんでした"), p->vpn_type);
         open_dialog(SCR_PROFILES, COL_RED, tr("VPN failed","VPN失敗"), m, tr("Connect anyway","このまま接続"), do_connect_now);
         return;
@@ -489,8 +527,10 @@ static void key_logs(uint32_t k)
 static int       g_menu_sel = 0;
 static int       g_file_sel = 0;
 static char      g_files[64][96];
+static int       g_file_isdir[64];
 static int       g_files_n = 0;
 static char      g_send_path[256];
+static char      g_browse_dir[512];        /* current folder in the file browser */
 
 static const char *filedir(void)
 {
@@ -577,31 +617,64 @@ static void open_menu(void)   /* uses current g_menu_sel (caller resets for a fr
     }
 }
 
-static void open_files(void)
+static int path_is_dir(const char *full)
 {
-    g_scr = SCR_FILES; g_file_sel = 0;
+    struct stat st;
+    return stat(full, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static void browse_up(void)   /* go to the parent folder */
+{
+    if (!strcmp(g_browse_dir, "/")) return;
+    char *s = strrchr(g_browse_dir, '/');
+    if (s && s != g_browse_dir) *s = '\0';
+    else strcpy(g_browse_dir, "/");
+    g_file_sel = 0; open_files();
+}
+
+static void open_files(void)   /* browses g_browse_dir; directories descend, files send */
+{
+    g_scr = SCR_FILES;
     g_files_n = 0;
-    DIR *d = opendir(filedir());
+    if (strcmp(g_browse_dir, "/") != 0) {       /* ".." to go up */
+        g_file_isdir[g_files_n] = 1;
+        snprintf(g_files[g_files_n++], sizeof(g_files[0]), "..");
+    }
+    DIR *d = opendir(g_browse_dir);
     if (d) {
         struct dirent *e;
         while ((e = readdir(d)) && g_files_n < 64) {
             if (e->d_name[0] == '.') continue;
+            char full[640];
+            snprintf(full, sizeof(full), "%s/%s", g_browse_dir, e->d_name);
+            g_file_isdir[g_files_n] = e->d_type == DT_DIR ||
+                                      (e->d_type == DT_UNKNOWN && path_is_dir(full));
             snprintf(g_files[g_files_n++], sizeof(g_files[0]), "%s", e->d_name);
         }
         closedir(d);
     }
+    if (g_file_sel >= g_files_n) g_file_sel = g_files_n > 0 ? g_files_n - 1 : 0;
+
     g_overlay = overlay_panel(300, 150);
     lv_obj_t *t = lv_label_create(g_overlay);
     lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(COL_TITLE), 0);
     lv_obj_set_pos(t, 8, 4);
     lv_label_set_text(t, tr("Send file","ファイル流し込み"));
-    for (int i = 0; i < g_files_n && i < 6; i++) {
+
+    const int VIS = 6;
+    int start = g_file_sel >= VIS ? g_file_sel - VIS + 1 : 0;
+    for (int row = 0; row < VIS && start + row < g_files_n; row++) {
+        int i = start + row;
         lv_obj_t *l = lv_label_create(g_overlay);
         lv_obj_set_style_text_font(l, ui_font(12), 0);
-        lv_obj_set_style_text_color(l, lv_color_hex(i == g_file_sel ? COL_TEXT : COL_DIM), 0);
-        lv_obj_set_pos(l, 12, 24 + i * 18);
-        lv_label_set_text(l, g_files[i]);
+        uint32_t col = i == g_file_sel ? COL_TEXT : (g_file_isdir[i] ? COL_CYAN : COL_DIM);
+        lv_obj_set_style_text_color(l, lv_color_hex(col), 0);
+        lv_obj_set_pos(l, 12, 24 + row * 18);
+        char nm[110];
+        snprintf(nm, sizeof(nm), "%s%s", g_files[i],
+                 g_file_isdir[i] && strcmp(g_files[i], "..") ? "/" : "");
+        lv_label_set_text(l, nm);
     }
     if (g_files_n == 0) {
         lv_obj_t *l = lv_label_create(g_overlay);
@@ -616,9 +689,19 @@ static void key_files(uint32_t k)
     switch (k) {
     case LV_KEY_UP:    if (g_file_sel > 0) { g_file_sel--; open_files(); } break;
     case LV_KEY_DOWN:  if (g_file_sel < g_files_n - 1) { g_file_sel++; open_files(); } break;
+    case LV_KEY_LEFT:  browse_up(); break;
     case LV_KEY_ENTER:
-        if (g_files_n > 0) {
-            snprintf(g_send_path, sizeof(g_send_path), "%s/%s", filedir(), g_files[g_file_sel]);
+        if (g_files_n == 0) break;
+        if (g_file_isdir[g_file_sel]) {
+            if (!strcmp(g_files[g_file_sel], "..")) { browse_up(); break; }
+            size_t l = strlen(g_browse_dir);
+            snprintf(g_browse_dir + l, sizeof(g_browse_dir) - l, "%s%s",
+                     l && g_browse_dir[l - 1] == '/' ? "" : "/", g_files[g_file_sel]);
+            g_file_sel = 0; open_files();
+        } else {
+            size_t l = strlen(g_browse_dir);
+            snprintf(g_send_path, sizeof(g_send_path), "%s%s%s", g_browse_dir,
+                     l && g_browse_dir[l - 1] == '/' ? "" : "/", g_files[g_file_sel]);
             open_send();
         }
         break;
@@ -673,7 +756,9 @@ static void key_menu(uint32_t k)
     case LV_KEY_ESC:   close_overlay(); break;
     case LV_KEY_ENTER:
         switch (g_menu_sel) {
-        case 0: open_files(); break;                          /* Send file */
+        case 0: g_file_sel = 0;                                /* Send file */
+            snprintf(g_browse_dir, sizeof(g_browse_dir), "%s", filedir());
+            open_files(); break;
         case 1:                                               /* Font size (live) */
             load_font_idx((g_size_idx + 1) % 3);
             term_resize(g_mono, g_cols, g_rows, g_cw, g_ch);
@@ -803,7 +888,8 @@ void app_main(lv_obj_t *parent)
     const char *alv = getenv("AUTO_LOGVIEW"); if (alv) { logsink_list_count(); show_logview(atoi(alv)); }
     const char *as = getenv("AUTO_SENDFILE"); if (as) sendfile_start(as);
     const char *am = getenv("AUTO_MENU");     if (am) { g_menu_sel = 0; open_menu(); }
-    const char *af = getenv("AUTO_FILES");    if (af) open_files();
+    const char *af = getenv("AUTO_FILES");    if (af) { g_file_sel = 0;
+        snprintf(g_browse_dir, sizeof(g_browse_dir), "%s", filedir()); open_files(); }
     const char *ad = getenv("AUTO_SENDDLG"); if (ad) { snprintf(g_send_path, sizeof(g_send_path), "%s", ad); open_send(); }
     const char *ak = getenv("AUTO_KEY"); if (ak) for (const char *p = ak; *p; p++) key_profiles((uint32_t)(unsigned char)*p);
 #endif

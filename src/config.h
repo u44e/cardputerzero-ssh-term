@@ -12,7 +12,11 @@ typedef struct {
     char port[8];
     char user[64];
     char vpn_type[12]; /* none|wireguard|openvpn|ikev2|l2tp|tailscale */
-    char vpn[32];    /* vpn config name/path (wg/ovpn) or conn name (ipsec) */
+    char vpn[96];    /* config name/path (wg/ovpn) or remote ID (ikev2) */
+    char vpn_server[80];  /* server host (ikev2/l2tp) */
+    char vpn_user[48];    /* username / account (openvpn/ikev2/l2tp) */
+    char vpn_pass[64];    /* password */
+    char vpn_secret[96];  /* PSK / shared secret (l2tp) or auth key (tailscale) */
     int  log;        /* 1 = save session log */
     char size[4];    /* terminal font px: "12" | "16" | "20" */
 } profile_t;

@@ -4,10 +4,11 @@
 #ifndef SSH_TERM_VPN_H
 #define SSH_TERM_VPN_H
 
-/* Bring up a VPN of `type` (wireguard|openvpn|ikev2|l2tp|tailscale) using `cfg`
- * (config name/path, or connection name for ipsec). Returns 0 if up, -1 on fail.
- * No-op (returns 0) when type is empty or "none". */
-int  vpn_up(const char *type, const char *cfg);
+#include "config.h"   /* profile_t carries the per-type VPN fields */
+
+/* Bring up the profile's VPN using its type + type-specific fields.
+ * Returns 0 if up, -1 on fail. No-op (returns 0) when type is empty or "none". */
+int  vpn_up(const profile_t *p);
 
 /* Selectable VPN types (index 0 = "none"). */
 extern const char *const VPN_TYPES[];

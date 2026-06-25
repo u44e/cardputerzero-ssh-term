@@ -28,6 +28,10 @@ static void set_field(profile_t *p, const char *key, const char *val)
     else if (!strcmp(key, "user"))  snprintf(p->user, sizeof(p->user), "%s", val);
     else if (!strcmp(key, "vpn_type")) snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", val);
     else if (!strcmp(key, "vpn"))   snprintf(p->vpn, sizeof(p->vpn), "%s", val);
+    else if (!strcmp(key, "vpn_server")) snprintf(p->vpn_server, sizeof(p->vpn_server), "%s", val);
+    else if (!strcmp(key, "vpn_user"))   snprintf(p->vpn_user, sizeof(p->vpn_user), "%s", val);
+    else if (!strcmp(key, "vpn_pass"))   snprintf(p->vpn_pass, sizeof(p->vpn_pass), "%s", val);
+    else if (!strcmp(key, "vpn_secret")) snprintf(p->vpn_secret, sizeof(p->vpn_secret), "%s", val);
     else if (!strcmp(key, "log"))   p->log = atoi(val);
     else if (!strcmp(key, "size"))  snprintf(p->size, sizeof(p->size), "%s", val);
 }
@@ -105,6 +109,10 @@ int config_save(void)
         fprintf(f, "p%d.user=%s\n",  i, p->user);
         fprintf(f, "p%d.vpn_type=%s\n", i, p->vpn_type[0] ? p->vpn_type : "none");
         fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);
+        fprintf(f, "p%d.vpn_server=%s\n", i, p->vpn_server);
+        fprintf(f, "p%d.vpn_user=%s\n",   i, p->vpn_user);
+        fprintf(f, "p%d.vpn_pass=%s\n",   i, p->vpn_pass);
+        fprintf(f, "p%d.vpn_secret=%s\n", i, p->vpn_secret);
         fprintf(f, "p%d.log=%d\n",   i, p->log);
         fprintf(f, "p%d.size=%s\n",  i, p->size[0] ? p->size : "12");
     }

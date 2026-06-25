@@ -56,28 +56,34 @@ static int run(const char *const argv[])
     return WIFEXITED(st) ? WEXITSTATUS(st) : -1;
 }
 
-int vpn_up(const char *type, const char *cfg)
+int vpn_up(const profile_t *p)
 {
+    const char *type = p ? p->vpn_type : "";
     if (!type || !*type || !strcmp(type, "none")) return 0;   /* no VPN */
     if (vpn_is_up()) { s_we_started = 0; return 0; }          /* already up */
 
-    const char *argv[8] = {0};
+    /* Each type uses the fields its editor showed. wg-quick/openvpn take a config;
+     * ikev2/l2tp use a pre-defined connection (Server/User/Pass are stored for the
+     * device to generate ipsec/xl2tpd config — device TODO); tailscale takes a key. */
+    const char *argv[10] = {0};
     if (!strcmp(type, "wireguard"))
-        argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "up", argv[3] = cfg;
+        argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "up", argv[3] = p->vpn;
     else if (!strcmp(type, "openvpn"))
-        argv[0] = "pkexec", argv[1] = "openvpn", argv[2] = "--config", argv[3] = cfg, argv[4] = "--daemon";
-    else if (!strcmp(type, "ikev2"))                          /* strongSwan */
-        argv[0] = "pkexec", argv[1] = "ipsec", argv[2] = "up", argv[3] = cfg;
+        argv[0] = "pkexec", argv[1] = "openvpn", argv[2] = "--config", argv[3] = p->vpn, argv[4] = "--daemon";
+    else if (!strcmp(type, "ikev2"))                          /* strongSwan connection */
+        argv[0] = "pkexec", argv[1] = "ipsec", argv[2] = "up", argv[3] = p->vpn[0] ? p->vpn : p->vpn_server;
     else if (!strcmp(type, "l2tp"))                           /* xl2tpd control */
-        argv[0] = "pkexec", argv[1] = "xl2tpd-control", argv[2] = "connect", argv[3] = cfg;
-    else if (!strcmp(type, "tailscale"))
+        argv[0] = "pkexec", argv[1] = "xl2tpd-control", argv[2] = "connect", argv[3] = p->vpn[0] ? p->vpn : p->vpn_server;
+    else if (!strcmp(type, "tailscale")) {
         argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "up";
+        if (p->vpn_secret[0]) argv[3] = "--authkey", argv[4] = p->vpn_secret;
+    }
     else
         return -1;
 
     int rc = run(argv);
     snprintf(s_type, sizeof(s_type), "%s", type);
-    snprintf(s_cfg, sizeof(s_cfg), "%s", cfg ? cfg : "");
+    snprintf(s_cfg, sizeof(s_cfg), "%s", p->vpn);
     if (rc == 0) { s_we_started = 1; return 0; }
     return -1;   /* caller offers "connect anyway / cancel" */
 }

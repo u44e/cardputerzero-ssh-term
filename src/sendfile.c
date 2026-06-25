@@ -119,7 +119,7 @@ int sendfile_start(const char *path)
 
     sendfile_cancel();
     sf.buf = u; sf.len = ol; sf.pos = 0;
-    sf.tmr = lv_timer_create(sf_tick, 20, NULL);
+    sf.tmr = lv_timer_create(sf_tick, 10, NULL);   /* one line/tick; paced for slow CLIs */
     return 0;
 }
 
