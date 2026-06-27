@@ -682,9 +682,33 @@ static lv_obj_t *overlay_panel(int w, int h)
 }
 
 /* ---------------- terminal scrollback view ---------------- */
+static void scroll_hint(int on)   /* bottom indicator while viewing history */
+{
+    if (on && !g_scrollhint) {
+        g_scrollhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
+        lv_obj_set_style_bg_color(g_scrollhint, lv_color_hex(0x10101E), 0);
+        lv_obj_set_style_bg_opa(g_scrollhint, LV_OPA_COVER, 0);
+        lv_obj_set_width(g_scrollhint, 320);
+        lv_label_set_text(g_scrollhint, tr("scrollback  (ESC / Alt+down = live)",
+                                           "履歴表示中  (ESC / Alt+下 = 最新)"));
+    } else if (!on && g_scrollhint) {
+        lv_obj_delete(g_scrollhint); g_scrollhint = NULL;
+    }
+}
+
+/* Alt + arrow scrolls the scrollback while staying in the live terminal. */
+static void term_alt_scroll(uint32_t base)
+{
+    if      (base == LV_KEY_UP)    term_scroll(+1);
+    else if (base == LV_KEY_DOWN)  term_scroll(-1);
+    else if (base == LV_KEY_LEFT)  term_scroll(+(g_rows - 1));
+    else if (base == LV_KEY_RIGHT) term_scroll(-(g_rows - 1));
+    scroll_hint(term_scroll_pos() > 0);
+}
+
 static void exit_scroll(void)
 {
-    if (g_scrollhint) { lv_obj_delete(g_scrollhint); g_scrollhint = NULL; }
+    scroll_hint(0);
     term_scroll_reset();
     g_scr = SCR_TERM;
 }
@@ -693,12 +717,7 @@ static void enter_scroll(void)
     g_scr = SCR_SCROLL;
     term_scroll(g_rows - 1);                 /* jump up ~one page */
     if (term_scroll_pos() == 0) { g_scr = SCR_TERM; return; }   /* nothing in history */
-    g_scrollhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
-    lv_obj_set_style_bg_color(g_scrollhint, lv_color_hex(0x10101E), 0);
-    lv_obj_set_style_bg_opa(g_scrollhint, LV_OPA_COVER, 0);
-    lv_obj_set_width(g_scrollhint, 320);
-    lv_label_set_text(g_scrollhint, tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " scroll   ESC: live",
-                                       "↑↓ スクロール   ESC: 最新へ"));
+    scroll_hint(1);
 }
 static void key_scroll(uint32_t k)
 {
@@ -971,7 +990,11 @@ void key_cb(lv_event_t *e)
 {
     uint32_t k = lv_event_get_key(e);
     switch (g_scr) {
-    case SCR_TERM:     term_feed_key(k); break;   /* all keys (incl. OS-IME text) -> PTY */
+    case SCR_TERM:
+        if (k & 0x20000000u) { term_alt_scroll(k & 0xFF); break; }   /* Alt+arrow -> scrollback */
+        if (term_scroll_pos() > 0) { term_scroll_reset(); scroll_hint(0); }  /* a keystroke -> live */
+        term_feed_key(k);
+        break;
     case SCR_PROFILES: key_profiles(k); break;
     case SCR_EDITOR:   key_editor(k); break;
     case SCR_LOGS:     key_logs(k); break;
