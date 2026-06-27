@@ -14,6 +14,9 @@
 #define MAX_COLS 128
 #define MAX_RUNS 28          /* colored runs per row */
 #define COL_FG   0x4CD96A    /* default fg (green, matches native console) */
+#define SB_CAP   400         /* scrollback lines kept */
+
+typedef struct { uint32_t cp[MAX_COLS]; uint32_t rgb[MAX_COLS]; short len; } sbline_t;
 
 static struct {
     VTerm        *vt;
@@ -27,6 +30,8 @@ static struct {
     volatile int  alive;
     int           inited;      /* resources live (mutex/vt/reader) — destroy guard */
     int           paused;      /* freeze rendering while an overlay covers the term */
+    sbline_t     *sb;          /* scrollback ring */
+    int           sb_n, sb_head, scroll;   /* count, oldest slot, view offset (0=live) */
     int           cols, rows, cell_w, cell_h;
     const lv_font_t *font;
     lv_obj_t     *runlbl[MAX_ROWS][MAX_RUNS];   /* per color-run labels */
@@ -79,6 +84,41 @@ static uint32_t cell_rgb(VTermScreenCell *cell)
     return ((uint32_t)c.rgb.red << 16) | ((uint32_t)c.rgb.green << 8) | c.rgb.blue;
 }
 
+/* a line scrolled off the top -> store it in the scrollback ring */
+static int sb_push(int cols, const VTermScreenCell *cells, void *user)
+{
+    (void)user;
+    if (!g.sb) return 0;
+    int slot;
+    if (g.sb_n < SB_CAP) { slot = (g.sb_head + g.sb_n) % SB_CAP; g.sb_n++; }
+    else                 { slot = g.sb_head; g.sb_head = (g.sb_head + 1) % SB_CAP; }
+    sbline_t *L = &g.sb[slot];
+    int n = cols < MAX_COLS ? cols : MAX_COLS;
+    L->len = (short)n;
+    for (int c = 0; c < n; c++) {
+        uint32_t cp = cells[c].chars[0]; if (cp == 0 || cp == (uint32_t)-1) cp = ' ';
+        L->cp[c] = cp;
+        VTermColor col = cells[c].fg;
+        vterm_screen_convert_color_to_rgb(g.vts, &col);
+        L->rgb[c] = ((uint32_t)col.rgb.red << 16) | ((uint32_t)col.rgb.green << 8) | col.rgb.blue;
+    }
+    if (g.scroll > 0 && g.scroll < g.sb_n) g.scroll++;   /* keep the view stable while scrolled */
+    return 1;
+}
+static const VTermScreenCallbacks SCB = { .sb_pushline = sb_push };
+
+void term_scroll(int delta)   /* +up (into history), -down (toward live) */
+{
+    pthread_mutex_lock(&g.mtx);
+    g.scroll += delta;
+    if (g.scroll < 0) g.scroll = 0;
+    if (g.scroll > g.sb_n) g.scroll = g.sb_n;
+    g.dirty = 1;
+    pthread_mutex_unlock(&g.mtx);
+}
+void term_scroll_reset(void) { pthread_mutex_lock(&g.mtx); g.scroll = 0; g.dirty = 1; pthread_mutex_unlock(&g.mtx); }
+int  term_scroll_pos(void)   { return g.scroll; }
+
 static void clear_runs(int r)
 {
     for (int i = 0; i < g.runs[r]; i++)
@@ -114,14 +154,23 @@ static void render_cb(lv_timer_t *t)
     char run[MAX_COLS * 4 + 1];
     for (int r = 0; r < g.rows; r++) {
         clear_runs(r);
+        int idx = g.sb_n - g.scroll + r;            /* content line: <sb_n = history */
+        int live = idx >= g.sb_n;
+        sbline_t *L = live ? NULL : &g.sb[(g.sb_head + idx) % SB_CAP];
         int started = 0, rstart = 0, li = 0;
         uint32_t rcol = 0;
         for (int c = 0; c < g.cols; ) {
-            VTermPos pos; pos.row = r; pos.col = c;
-            VTermScreenCell cell;
-            if (!vterm_screen_get_cell(g.vts, pos, &cell)) { c++; continue; }
-            uint32_t cp = cell.chars[0]; if (cp == 0 || cp == (uint32_t)-1) cp = ' ';
-            uint32_t rgb = cell_rgb(&cell);
+            uint32_t cp, rgb; int w = 1;
+            if (live) {
+                VTermPos pos; pos.row = idx - g.sb_n; pos.col = c;
+                VTermScreenCell cell;
+                if (!vterm_screen_get_cell(g.vts, pos, &cell)) { c++; continue; }
+                cp = cell.chars[0]; if (cp == 0 || cp == (uint32_t)-1) cp = ' ';
+                rgb = cell_rgb(&cell); w = cell.width > 0 ? cell.width : 1;
+            } else {
+                if (L && c < L->len) { cp = L->cp[c]; rgb = L->rgb[c]; }
+                else { cp = ' '; rgb = COL_FG; }
+            }
             if (!started) { started = 1; rstart = c; rcol = rgb; li = 0; }
             else if (rgb != rcol) {
                 run[li] = 0;
@@ -129,7 +178,7 @@ static void render_cb(lv_timer_t *t)
                 rstart = c; rcol = rgb; li = 0;
             }
             if (li < MAX_COLS * 4 - 4) li += cp_to_utf8(cp, run + li);
-            c += (cell.width > 0 ? cell.width : 1);
+            c += w;
         }
         if (started) {
             run[li] = 0;
@@ -137,10 +186,15 @@ static void render_cb(lv_timer_t *t)
         }
     }
 
-    VTermPos cur;
-    vterm_state_get_cursorpos(g.state, &cur);
-    lv_obj_set_pos(g.cursor, cur.col * g.cell_w, cur.row * g.cell_h);
-    lv_obj_move_foreground(g.cursor);
+    if (g.scroll > 0) {                              /* in history: no live cursor */
+        lv_obj_add_flag(g.cursor, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(g.cursor, LV_OBJ_FLAG_HIDDEN);
+        VTermPos cur;
+        vterm_state_get_cursorpos(g.state, &cur);
+        lv_obj_set_pos(g.cursor, cur.col * g.cell_w, cur.row * g.cell_h);
+        lv_obj_move_foreground(g.cursor);
+    }
 
     pthread_mutex_unlock(&g.mtx);
 }
@@ -182,6 +236,7 @@ void term_resize(const lv_font_t *font, int cols, int rows, int cell_w, int cell
     for (int r = 0; r < g.rows; r++) clear_runs(r);
     if (g.cursor) { lv_obj_delete(g.cursor); g.cursor = NULL; }
     g.font = font; g.cols = cols; g.rows = rows; g.cell_w = cell_w; g.cell_h = cell_h;
+    g.scroll = 0;
     build_grid();
     vterm_set_size(g.vt, rows, cols);
     pty_resize(&g.pty, cols, rows);
@@ -209,6 +264,8 @@ void term_create(lv_obj_t *parent, const char *const argv[],
     vterm_output_set_callback(g.vt, out_cb, NULL);
     g.state = vterm_obtain_state(g.vt);
     g.vts = vterm_obtain_screen(g.vt);
+    g.sb = calloc(SB_CAP, sizeof(sbline_t));          /* scrollback ring */
+    vterm_screen_set_callbacks(g.vts, &SCB, NULL);    /* capture scrolled-off lines */
     vterm_screen_enable_altscreen(g.vts, 1);
     vterm_screen_reset(g.vts, 1);
 
@@ -289,5 +346,7 @@ void term_destroy(void)
     pty_close(&g.pty);
     if (g.timer) { lv_timer_delete(g.timer); g.timer = NULL; }
     if (g.vt) { vterm_free(g.vt); g.vt = NULL; }
+    if (g.sb) { free(g.sb); g.sb = NULL; }
+    g.sb_n = g.sb_head = g.scroll = 0;
     pthread_mutex_destroy(&g.mtx);
 }

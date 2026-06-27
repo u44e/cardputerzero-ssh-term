@@ -29,4 +29,9 @@ void term_destroy(void);
 /* Freeze/resume rendering (and cursor raise) while an overlay covers the term. */
 void term_render_pause(int paused);
 
+/* Scrollback view: +delta scrolls up into history, -delta toward live. */
+void term_scroll(int delta);
+void term_scroll_reset(void);   /* jump back to the live bottom */
+int  term_scroll_pos(void);     /* current offset (0 = live) */
+
 #endif /* SSH_TERM_TERM_H */
