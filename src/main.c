@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <time.h>
+#include <ctype.h>
 #include "config.h"
 #include "term.h"
 #include "logsink.h"
@@ -60,6 +62,10 @@ static char g_ebuf[128];
 
 /* logs browser state */
 static int  g_log_sel = 0;
+
+/* top-right status bar (clock / wifi / battery) */
+static lv_obj_t *g_sb_time, *g_sb_batt, *g_sb_wifi[4];
+static int       s_batt = -1, s_wifi = -1;   /* % and 0-4 bars, -1 unknown */
 
 static void show_profiles(void);
 static void show_editor(int idx);
@@ -175,18 +181,98 @@ static void attach_capture(void)
     lv_group_focus_obj(g_cap);
 }
 
+/* ---------------- top status bar (clock / wifi / battery) ---------------- */
+static int read_battery(void)
+{
+#if defined(APP_EMU)
+    FILE *fp = popen("pmset -g batt 2>/dev/null", "r");      /* macOS */
+    if (!fp) return -1;
+    char line[256]; int pct = -1;
+    while (fgets(line, sizeof line, fp)) {
+        char *pc = strchr(line, '%');
+        if (pc) { char *s = pc; while (s > line && isdigit((unsigned char)s[-1])) s--; pct = atoi(s); break; }
+    }
+    pclose(fp);
+    return pct;
+#else
+    const char *paths[] = { "/sys/class/power_supply/BAT0/capacity",
+                            "/sys/class/power_supply/BAT1/capacity",
+                            "/sys/class/power_supply/battery/capacity" };
+    for (int i = 0; i < 3; i++) {
+        FILE *f = fopen(paths[i], "r");
+        if (f) { int v = -1, ok = fscanf(f, "%d", &v); fclose(f); if (ok == 1) return v; }
+    }
+    return -1;
+#endif
+}
+
+static int read_wifi(void)   /* 0-4 bars, -1 unknown */
+{
+#if defined(APP_EMU)
+    return 3;   /* emulator has no easy Wi-Fi CLI; device reads the real value */
+#else
+    FILE *f = fopen("/proc/net/wireless", "r");
+    if (!f) return -1;
+    char line[256]; int bars = -1;
+    if (fgets(line, sizeof line, f) && fgets(line, sizeof line, f) && fgets(line, sizeof line, f)) {
+        char iface[40]; int st; float link = -1;
+        if (sscanf(line, " %39[^:]: %d %f", iface, &st, &link) >= 3 && link >= 0) {
+            bars = (int)(link * 4 / 70);   /* link quality 0-70 -> 0-4 */
+            if (bars > 4) bars = 4; if (bars < 0) bars = 0;
+        }
+    }
+    fclose(f);
+    return bars;
+#endif
+}
+
+static void statusbar_set(void)
+{
+    if (!g_sb_time) return;
+    time_t t = time(NULL); struct tm m; localtime_r(&t, &m);
+    char tb[8]; snprintf(tb, sizeof tb, "%02d:%02d", m.tm_hour, m.tm_min);
+    lv_label_set_text(g_sb_time, tb);
+
+    static time_t last = 0;     /* throttle the slow battery/wifi reads */
+    if (last == 0 || t - last >= 20) { last = t; s_batt = read_battery(); s_wifi = read_wifi(); }
+
+    const char *sym = LV_SYMBOL_BATTERY_EMPTY;
+    if      (s_batt >= 90) sym = LV_SYMBOL_BATTERY_FULL;
+    else if (s_batt >= 65) sym = LV_SYMBOL_BATTERY_3;
+    else if (s_batt >= 40) sym = LV_SYMBOL_BATTERY_2;
+    else if (s_batt >= 15) sym = LV_SYMBOL_BATTERY_1;
+    char bb[16];
+    if (s_batt >= 0) snprintf(bb, sizeof bb, "%s%d%%", sym, s_batt);
+    else             snprintf(bb, sizeof bb, "%s--", LV_SYMBOL_BATTERY_EMPTY);
+    lv_label_set_text(g_sb_batt, bb);
+    lv_obj_set_style_text_color(g_sb_batt, lv_color_hex(s_batt >= 0 && s_batt < 15 ? COL_RED : COL_TEXT), 0);
+
+    for (int i = 0; i < 4; i++)
+        lv_obj_set_style_bg_color(g_sb_wifi[i],
+            lv_color_hex(i < (s_wifi < 0 ? 0 : s_wifi) ? COL_CYAN : COL_HILITE), 0);
+}
+
+static void draw_statusbar(void)   /* top-right: HH:MM  wifi-bars  battery */
+{
+    g_sb_time = mklabel(&lv_font_montserrat_12, COL_DIM, 196, 4, "");
+    for (int i = 0; i < 4; i++) { int h = 4 + i * 2; g_sb_wifi[i] = mkrect(COL_HILITE, 240 + i * 5, 16 - h, 3, h); }
+    g_sb_batt = mklabel(&lv_font_montserrat_12, COL_TEXT, 266, 4, "");
+    statusbar_set();
+}
+
+static void statusbar_tick(lv_timer_t *t) { (void)t; if (g_scr == SCR_PROFILES) statusbar_set(); }
+
 /* ---------------- profiles ---------------- */
 static void show_profiles(void)
 {
     g_scr = SCR_PROFILES;
     lv_obj_clean(g_root);
+    g_sb_time = NULL;                 /* status-bar labels were just deleted */
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     mklabel(ui_font(14), COL_TITLE, 8, 5, tr("Sessions","セッション"));
-    char cnt[16]; snprintf(cnt, sizeof(cnt), "%d", config_count());
-    lv_obj_t *c = mklabel(ui_font(12), COL_DIM, 0, 0, cnt);
-    lv_obj_align(c, LV_ALIGN_TOP_RIGHT, -8, 8);
+    draw_statusbar();                 /* clock / wifi / battery (top-right) */
 
     int top = 28, rh = 22, n = config_count();
     if (g_sel >= n) g_sel = n > 0 ? n - 1 : 0;
@@ -884,6 +970,7 @@ void app_main(lv_obj_t *parent)
     g_lang = config_lang();
     show_profiles();
     g_watch = lv_timer_create(watch_cb, 400, NULL);
+    lv_timer_create(statusbar_tick, 2000, NULL);   /* live clock / wifi / battery */
 
 #if defined(SSH_TERM_TEST_HOOKS)
     /* Headless test hooks — emulator/CI only; NOT compiled into device builds. */
