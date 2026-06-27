@@ -242,16 +242,25 @@ static void statusbar_set(void)
     lv_label_set_text(g_sb_batt, bb);
     lv_obj_set_style_text_color(g_sb_batt, lv_color_hex(s_batt >= 0 && s_batt < 15 ? COL_RED : COL_TEXT), 0);
 
-    for (int i = 0; i < 4; i++)
+    /* lay the cluster out flush to the right edge (battery width varies) */
+    int rx = 313;
+    int bx = rx - (int)strlen(bb) * 8;        /* battery % */
+    lv_obj_set_pos(g_sb_batt, bx, 4);
+    int wx = bx - 8 - 18;                      /* wifi bars (18px wide) */
+    for (int i = 0; i < 4; i++) {
+        int h = 4 + i * 2;
+        lv_obj_set_pos(g_sb_wifi[i], wx + i * 5, 16 - h);
         lv_obj_set_style_bg_color(g_sb_wifi[i],
             lv_color_hex(i < (s_wifi < 0 ? 0 : s_wifi) ? COL_CYAN : COL_HILITE), 0);
+    }
+    lv_obj_set_pos(g_sb_time, wx - 8 - 30, 4); /* clock (HH:MM) */
 }
 
-static void draw_statusbar(void)   /* top-right: HH:MM  wifi-bars  battery */
+static void draw_statusbar(void)   /* top-right: HH:MM  wifi-bars  battery% */
 {
-    g_sb_time = mklabel(&lv_font_montserrat_12, COL_DIM, 196, 4, "");
-    for (int i = 0; i < 4; i++) { int h = 4 + i * 2; g_sb_wifi[i] = mkrect(COL_HILITE, 240 + i * 5, 16 - h, 3, h); }
-    g_sb_batt = mklabel(&lv_font_montserrat_12, COL_TEXT, 266, 4, "");
+    g_sb_time = mklabel(&lv_font_montserrat_12, COL_DIM, 0, 4, "");
+    for (int i = 0; i < 4; i++) { int h = 4 + i * 2; g_sb_wifi[i] = mkrect(COL_HILITE, 0, 16 - h, 3, h); }
+    g_sb_batt = mklabel(&lv_font_montserrat_12, COL_TEXT, 0, 4, "");
     statusbar_set();
 }
 
