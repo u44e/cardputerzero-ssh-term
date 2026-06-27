@@ -236,14 +236,9 @@ static void statusbar_set(void)
     static time_t last = 0;     /* throttle the slow battery/wifi reads */
     if (last == 0 || t - last >= 20) { last = t; s_batt = read_battery(); s_wifi = read_wifi(); }
 
-    const char *sym = LV_SYMBOL_BATTERY_EMPTY;
-    if      (s_batt >= 90) sym = LV_SYMBOL_BATTERY_FULL;
-    else if (s_batt >= 65) sym = LV_SYMBOL_BATTERY_3;
-    else if (s_batt >= 40) sym = LV_SYMBOL_BATTERY_2;
-    else if (s_batt >= 15) sym = LV_SYMBOL_BATTERY_1;
     char bb[16];
-    if (s_batt >= 0) snprintf(bb, sizeof bb, "%s%d%%", sym, s_batt);
-    else             snprintf(bb, sizeof bb, "%s--", LV_SYMBOL_BATTERY_EMPTY);
+    if (s_batt >= 0) snprintf(bb, sizeof bb, "%d%%", s_batt);
+    else             snprintf(bb, sizeof bb, "--%%");
     lv_label_set_text(g_sb_batt, bb);
     lv_obj_set_style_text_color(g_sb_batt, lv_color_hex(s_batt >= 0 && s_batt < 15 ? COL_RED : COL_TEXT), 0);
 
