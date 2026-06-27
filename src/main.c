@@ -37,7 +37,7 @@
 #define COL_RED    0xFF6B6B
 
 enum { SCR_PROFILES, SCR_EDITOR, SCR_TERM, SCR_LOGS, SCR_LOGVIEW, SCR_MENU, SCR_FILES,
-       SCR_SEND, SCR_DIALOG, SCR_SCROLL };
+       SCR_SEND, SCR_DIALOG };
 
 static lv_obj_t   *g_root;
 static int         g_scr = SCR_PROFILES;
@@ -689,8 +689,8 @@ static void scroll_hint(int on)   /* bottom indicator while viewing history */
         lv_obj_set_style_bg_color(g_scrollhint, lv_color_hex(0x10101E), 0);
         lv_obj_set_style_bg_opa(g_scrollhint, LV_OPA_COVER, 0);
         lv_obj_set_width(g_scrollhint, 320);
-        lv_label_set_text(g_scrollhint, tr("scrollback  (ESC / Alt+down = live)",
-                                           "履歴表示中  (ESC / Alt+下 = 最新)"));
+        lv_label_set_text(g_scrollhint, tr("scrollback  (Alt+down / type = live)",
+                                           "履歴表示中  (Alt+下 / 入力 = 最新)"));
     } else if (!on && g_scrollhint) {
         lv_obj_delete(g_scrollhint); g_scrollhint = NULL;
     }
@@ -706,40 +706,14 @@ static void term_alt_scroll(uint32_t base)
     scroll_hint(term_scroll_pos() > 0);
 }
 
-static void exit_scroll(void)
-{
-    scroll_hint(0);
-    term_scroll_reset();
-    g_scr = SCR_TERM;
-}
-static void enter_scroll(void)
-{
-    g_scr = SCR_SCROLL;
-    term_scroll(g_rows - 1);                 /* jump up ~one page */
-    if (term_scroll_pos() == 0) { g_scr = SCR_TERM; return; }   /* nothing in history */
-    scroll_hint(1);
-}
-static void key_scroll(uint32_t k)
-{
-    switch (k) {
-    case LV_KEY_UP:    term_scroll(+1); break;
-    case LV_KEY_DOWN:  term_scroll(-1); if (term_scroll_pos() == 0) exit_scroll(); break;
-    case LV_KEY_LEFT:  term_scroll(+(g_rows - 1)); break;       /* page up */
-    case LV_KEY_RIGHT: term_scroll(-(g_rows - 1)); if (term_scroll_pos() == 0) exit_scroll(); break;
-    case LV_KEY_ESC:
-    case LV_KEY_ENTER: exit_scroll(); break;
-    }
-}
-
-#define MENU_N 6
+#define MENU_N 5
 static const char *menu_label(int i)
 {
     switch (i) {
     case 0: return tr("Send file...","ファイル流し込み...");
     case 2: return tr("Toggle log","ログ ON/OFF");
-    case 3: return tr("Scroll back","スクロール");
-    case 4: return tr("Close session","切断");
-    case 5: return tr("Back","戻る");
+    case 3: return tr("Close session","切断");
+    case 4: return tr("Back","戻る");
     }
     return "";
 }
@@ -917,9 +891,8 @@ static void key_menu(uint32_t k)
             else logsink_open(config_get(g_cur_pidx) ? config_get(g_cur_pidx)->name : "session");
             close_overlay();
             break;
-        case 3: close_overlay(); enter_scroll(); break;       /* Scroll back */
-        case 4: close_overlay(); term_destroy(); logsink_close(); vpn_down(); show_profiles(); break;
-        case 5: close_overlay(); break;
+        case 3: close_overlay(); term_destroy(); logsink_close(); vpn_down(); show_profiles(); break;
+        case 4: close_overlay(); break;
         }
         break;
     }
@@ -1004,7 +977,6 @@ void key_cb(lv_event_t *e)
         else if (k == LV_KEY_UP && g_logview_ta)   lv_obj_scroll_by(g_logview_ta, 0,  28, LV_ANIM_OFF);
         break;
     case SCR_MENU:     key_menu(k); break;
-    case SCR_SCROLL:   key_scroll(k); break;
     case SCR_FILES:    key_files(k); break;
     case SCR_SEND:     key_send(k); break;
     case SCR_DIALOG:   key_dialog(k); break;
