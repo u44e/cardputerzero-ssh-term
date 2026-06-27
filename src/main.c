@@ -96,8 +96,13 @@ static void load_font_idx(int idx)
     g_size_idx = idx;
     if (!g_fontcache[idx]) {
         lv_freetype_init(256);
-        g_fontcache[idx] = lv_freetype_font_create(MONO_PATH,
+        lv_font_t *f = lv_freetype_font_create(MONO_PATH,
             LV_FREETYPE_FONT_RENDER_MODE_BITMAP, SIZES[idx], LV_FREETYPE_FONT_STYLE_NORMAL);
+        if (f) {   /* CJK fallback so Japanese/CJK output isn't tofu in the terminal */
+            f->fallback = lv_freetype_font_create(UI_JP_PATH,
+                LV_FREETYPE_FONT_RENDER_MODE_BITMAP, SIZES[idx], LV_FREETYPE_FONT_STYLE_NORMAL);
+        }
+        g_fontcache[idx] = f;
     }
     const lv_font_t *f = g_fontcache[idx];
     if (f) {

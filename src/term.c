@@ -203,9 +203,9 @@ static void render_cb(lv_timer_t *t)
 /* headless self-test: type g.test through the real key path (emulator/CI only) */
 static void test_cb(lv_timer_t *t)
 {
-    for (const char *p = g.test; p && *p; p++) {
-        if (*p == '\n') term_feed_key(LV_KEY_ENTER);
-        else            term_feed_key((uint32_t)(unsigned char)*p);
+    for (const char *p = g.test; p && *p; p++) {   /* raw bytes -> shell (UTF-8 safe) */
+        char c = (*p == '\n') ? '\r' : *p;
+        pty_write(&g.pty, &c, 1);
     }
     lv_timer_delete(t);
     g.test_timer = NULL;
