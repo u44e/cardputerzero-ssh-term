@@ -82,7 +82,7 @@
 ## 設計・ライセンス
 - **launcherコードは非流用**（無許諾のため機能のみ参照）。libvterm=MIT、フォントは実機常駐を読むだけ（再配布なし）。
 - 7モジュール：`main / pty / term / config / logsink / sendfile / vpn`（IMEはOS委譲のため自前モジュール無し）。
-- GitHub: `github.com/u44e/cardputerzero-ssh-term`（private、`v0.0.1`）。
+- GitHub: `github.com/u44e/cardputerzero-ssh-term`（private、`v0.1.0`）。
 
 ## 残（実機/低優先）
 実機デプロイ＋対話打鍵検証、fcitx5-mozc漢字、VPN実起動、Ctrl全種、接続中オーバーレイ（モック10、未実装）、
