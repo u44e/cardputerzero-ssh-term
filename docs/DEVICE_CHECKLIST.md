@@ -20,6 +20,9 @@ Mac側の実装・検証は完了済み。残るは**実機でしか確認でき
 ## 2. 検証チェックリスト
 - [ ] **R1: フルキー到達** — `` ` `` IMEオフで、英字/記号/**Fn矢印/Tab/ESC** が端末に通る（特にTab補完・矢印履歴・vimのESC）。
       → 食われる場合は単一objグループの focus 無効化を確認（main.c attach_capture）。
+      → **F1-F12/PgUp/PgDn/Ins/Alt+文字** はホストのキードライバが em と同じタグ
+        （Ctrl=`0x40000000|c` / Alt=`0x20000000|k` / Fn系=`0x10000000|code`）を届ける前提。
+        届かなければホスト側ドライバ拡張（emのパッチ `lv_sdl_keyboard.c` 参照）。
 - [ ] **実 SSH 接続** — プロファイルで proto=ssh、LAN機器へ。鍵/パスワード、vim/htop が**色付き**で動く。
 - [ ] **実 telnet 接続** — 国交省/網機器へ。
 - [ ] **USB-シリアルコンソール** — USB-シリアル変換を挿し proto=serial（Device=`/dev/ttyUSB0`, Baud=9600等）→

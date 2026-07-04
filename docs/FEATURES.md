@@ -38,6 +38,8 @@
 |------|:--:|
 | フルキー受信（`NO_KBD_STUBS`、単一objグループで **Tab/矢印もハンドラに到達**） | ✅ |
 | キー→PTYバイト変換：印字/Unicode、矢印(CSI)、Enter/BS/ESC/Tab/Home/End/Del | ✅ |
+| **F1-F12 / Insert / PageUp / PageDown** → xterm CSI（`ESC OP`〜`ESC[24~` 等。emはドライバがタグ付け、実機はホスト依存） | ✅(em) / ⏳(実機) |
+| **Alt+文字 = Meta送出**（ESCプレフィクス。readline/emacs の `M-b` `M-f` 等。Alt+矢印はスクロールバック優先） | ✅(em) / ⏳(実機) |
 | ESCはPTYへ素通し（vim等）、SIDEキーで Session Menu、**Alt+矢印でスクロールバック** | ✅ |
 | Ctrl系：emは制御文字一部、実機は `LV_EVENT_KEYBOARD`(key_item)修飾で全対応 | ◐ |
 

@@ -1147,7 +1147,20 @@ void key_cb(lv_event_t *e)
     uint32_t k = lv_event_get_key(e);
     switch (g_scr) {
     case SCR_TERM:
-        if (k & 0x20000000u) { term_alt_scroll(k & 0xFF); break; }   /* Alt+arrow -> scrollback */
+        if (k & 0x20000000u) {                                       /* Alt-tagged key */
+            uint32_t b = k & 0xFF;
+            if (b == LV_KEY_UP || b == LV_KEY_DOWN || b == LV_KEY_LEFT || b == LV_KEY_RIGHT) {
+                term_alt_scroll(b);                                  /* Alt+arrow -> scrollback */
+                break;
+            }
+            if (term_scroll_pos() > 0) { term_scroll_reset(); scroll_hint(0); }
+            if (b >= 0x20 && b < 0x7f) {                             /* Alt+printable -> Meta
+                                                                        (ESC-prefix, readline/emacs) */
+                char m[2] = { 0x1b, (char)b };
+                term_send_bytes(m, 2);
+            }
+            break;
+        }
         if (term_scroll_pos() > 0) { term_scroll_reset(); scroll_hint(0); }  /* a keystroke -> live */
         term_feed_key(k);
         break;

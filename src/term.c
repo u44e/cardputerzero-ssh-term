@@ -321,11 +321,26 @@ void term_feed_key(uint32_t key)
      * LVGL nav keys below (Ctrl-C 0x03 vs LV_KEY_END, etc.). On the device the
      * key_item modifier path will deliver the same control bytes. */
     if (key & 0x40000000u) { b[0] = (char)(key & 0x1f); pty_write(&g.pty, b, 1); return; }
+    /* Function/nav keys tagged 0x10000000|code by the host keyboard driver
+     * (1-12=F1-F12, 13=Insert, 14=PageUp, 15=PageDown) -> xterm escapes. */
+    if (key & 0x10000000u) {
+        static const char *const FK[15] = {
+            "\x1bOP",   "\x1bOQ",   "\x1bOR",   "\x1bOS",     /* F1-F4  */
+            "\x1b[15~", "\x1b[17~", "\x1b[18~", "\x1b[19~",   /* F5-F8  */
+            "\x1b[20~", "\x1b[21~", "\x1b[23~", "\x1b[24~",   /* F9-F12 */
+            "\x1b[2~",  "\x1b[5~",  "\x1b[6~",                /* Ins PgUp PgDn */
+        };
+        int i = (int)(key & 0xFF) - 1;
+        if (i >= 0 && i < 15) pty_write(&g.pty, FK[i], strlen(FK[i]));
+        return;
+    }
     switch (key) {
     case LV_KEY_ENTER:     b[0] = '\r'; n = 1; break;
     case LV_KEY_BACKSPACE: b[0] = 0x7f; n = 1; break;
     case LV_KEY_ESC:       b[0] = 0x1b; n = 1; break;
     case LV_KEY_NEXT:      b[0] = '\t'; n = 1; break;   /* Tab */
+    case LV_KEY_PREV:      n = sprintf(b, "\x1b[5~"); break;   /* PageUp from hosts that
+                              deliver LV_KEY_PREV (was falling through as Ctrl-K) */
     case LV_KEY_UP:        n = sprintf(b, "\x1b[A"); break;
     case LV_KEY_DOWN:      n = sprintf(b, "\x1b[B"); break;
     case LV_KEY_RIGHT:     n = sprintf(b, "\x1b[C"); break;
