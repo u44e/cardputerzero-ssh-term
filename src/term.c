@@ -17,6 +17,9 @@
 #define MAX_RUNS 64          /* style runs per row (split on fg/bg/underline);
                                 >= max columns at supported font sizes (45@12px) */
 #define COL_FG   0x4CD96A    /* default fg (green, matches native console) */
+
+static uint32_t s_theme_fg = COL_FG;   /* per-profile default foreground (set before create) */
+void term_set_theme(uint32_t rgb) { s_theme_fg = rgb ? rgb : COL_FG; }
 #define SB_CAP   400         /* scrollback lines kept */
 
 typedef struct { uint32_t cp[MAX_COLS]; uint32_t rgb[MAX_COLS]; short len; } sbline_t;
@@ -225,7 +228,7 @@ static void do_render(void)
                 cell_colors(&cell, &fg, &bg, &ul); w = cell.width > 0 ? cell.width : 1;
             } else {   /* scrollback history keeps fg only (plain scrolled-off text) */
                 if (L && c < L->len) { cp = L->cp[c]; fg = L->rgb[c]; }
-                else { cp = ' '; fg = COL_FG; }
+                else { cp = ' '; fg = s_theme_fg; }
             }
             if (!started) { started = 1; rstart = c; rfg = fg; rbg = bg; rul = ul; li = 0; }
             else if (fg != rfg || bg != rbg || ul != rul) {
@@ -289,7 +292,7 @@ static void build_grid(void)
     lv_obj_set_style_border_width(g.cursor, 0, 0);
     lv_obj_set_style_radius(g.cursor, 0, 0);
     lv_obj_set_style_pad_all(g.cursor, 0, 0);
-    lv_obj_set_style_bg_color(g.cursor, lv_color_hex(COL_FG), 0);
+    lv_obj_set_style_bg_color(g.cursor, lv_color_hex(s_theme_fg), 0);
     lv_obj_set_style_bg_opa(g.cursor, LV_OPA_50, 0);
     lv_obj_set_size(g.cursor, g.cell_w, g.cell_h);
     lv_obj_set_pos(g.cursor, 0, 0);
@@ -337,9 +340,9 @@ void term_create(lv_obj_t *parent, const char *const argv[],
     vterm_screen_enable_altscreen(g.vts, 1);
     vterm_screen_reset(g.vts, 1);
 
-    /* default colors: green on black (matches the native console) */
+    /* default colors: the profile theme fg (green by default) on black */
     VTermColor dfg, dbg;
-    vterm_color_rgb(&dfg, 0x4C, 0xD9, 0x6A);
+    vterm_color_rgb(&dfg, (s_theme_fg >> 16) & 0xFF, (s_theme_fg >> 8) & 0xFF, s_theme_fg & 0xFF);
     vterm_color_rgb(&dbg, 0x00, 0x00, 0x00);
     vterm_state_set_default_colors(g.state, &dfg, &dbg);
 

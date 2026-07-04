@@ -19,6 +19,7 @@ typedef struct {
                       * the OS (NetworkManager / /etc/wireguard …), never stored here. */
     int  log;        /* 1 = save session log */
     char size[4];    /* terminal font px: "12" | "16" | "20" */
+    char theme[8];   /* terminal fg theme: green|amber|cyan|white (empty = green) */
 } profile_t;
 
 /* Quick-send macro: a named one-line command sent to the live terminal (+Enter). */

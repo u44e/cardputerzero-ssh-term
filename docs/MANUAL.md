@@ -58,6 +58,7 @@
 | **Connection** | OS側 VPN 接続の**名前**（NM接続名 / wg・ovpn の config名 / ipsec connection名）。**秘密情報は入力せず OS が保持**。Tailscale は不要 |
 | Log | セッションログ保存 ON/OFF |
 | Size | 端末フォント `12 / 16 / 20px` |
+| Theme | 端末の既定文字色 `green / amber / cyan / white`（`←→`で選択） |
 
 操作：`↑↓`項目移動 / `Enter`テキスト編集（物理キーボードで入力→`Enter`確定）/ `←→`選択項目の切替 / `s`保存 / `ESC`戻る。
 

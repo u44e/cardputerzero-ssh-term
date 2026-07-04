@@ -36,6 +36,7 @@ static void set_field(profile_t *p, const char *key, const char *val)
      * are OS-managed now, and dropping them here purges them on the next save. */
     else if (!strcmp(key, "log"))   p->log = atoi(val);
     else if (!strcmp(key, "size"))  snprintf(p->size, sizeof(p->size), "%s", val);
+    else if (!strcmp(key, "theme")) snprintf(p->theme, sizeof(p->theme), "%s", val);
 }
 
 static void seed_defaults(void)
@@ -126,6 +127,7 @@ int config_save(void)
         fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);   /* OS-side connection name; no secrets */
         fprintf(f, "p%d.log=%d\n",   i, p->log);
         fprintf(f, "p%d.size=%s\n",  i, p->size[0] ? p->size : "12");
+        fprintf(f, "p%d.theme=%s\n", i, p->theme[0] ? p->theme : "green");
     }
     fprintf(f, "macros=%d\n", s_macro_count);
     for (int i = 0; i < s_macro_count; i++) {

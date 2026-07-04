@@ -366,6 +366,7 @@ static void build_fields(profile_t *p)
     }
     EF("Log","ログ",3,0,0,0);
     EF("Size","文字サイズ",4,0,0,0);
+    EF("Theme","配色",6,0,0,0);
 #undef EF
     g_efn = n;
 }
@@ -385,6 +386,7 @@ static void field_value(profile_t *p, int f, char *out, size_t n)
     case 3: snprintf(out, n, tr("[%s] save session log","[%s] セッションログ保存"), p->log ? "x" : " "); break;
     case 4: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
     case 5: snprintf(out, n, "< %s >", p->sfmt[0] ? p->sfmt : "8N1"); break;
+    case 6: snprintf(out, n, "< %s >", p->theme[0] ? p->theme : "green"); break;
     default:
         if (e->secret && e->buf && e->buf[0]) snprintf(out, n, "********");
         else snprintf(out, n, "%s", (e->buf && e->buf[0]) ? e->buf : tr("(none)","(なし)"));
@@ -460,7 +462,21 @@ static void editor_toggle(profile_t *p, int dir)
         for (int i = 0; i < m; i++) if (!strcmp(p->sfmt, SFMTS[i])) cur = i;
         snprintf(p->sfmt, sizeof(p->sfmt), "%s", SFMTS[(cur + (dir >= 0 ? 1 : m - 1)) % m]);
         break; }
+    case 6: {   /* terminal colour theme (default foreground) */
+        static const char *const THEMES[] = { "green", "amber", "cyan", "white" };
+        int m = 4, cur = 0;
+        for (int i = 0; i < m; i++) if (!strcmp(p->theme, THEMES[i])) cur = i;
+        snprintf(p->theme, sizeof(p->theme), "%s", THEMES[(cur + (dir >= 0 ? 1 : m - 1)) % m]);
+        break; }
     }
+}
+
+static uint32_t theme_rgb(const char *t)
+{
+    if (!strcmp(t, "amber")) return 0xFFB82E;
+    if (!strcmp(t, "cyan"))  return 0x3AD8FF;
+    if (!strcmp(t, "white")) return 0xECECF2;
+    return 0x4CD96A;   /* green (default) */
 }
 
 /* toggle, then keep the cursor on the same logical row: crossing the serial
@@ -575,6 +591,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     if (p->log) logsink_open(p->name);
+    term_set_theme(theme_rgb(p->theme[0] ? p->theme : "green"));
     term_create(g_root, argv, g_mono, g_cols, g_rows, g_cw, g_ch);
     add_status_bar(p, p->log);
     /* Japanese input is handled by the OS IME (fcitx5-mozc): composed text

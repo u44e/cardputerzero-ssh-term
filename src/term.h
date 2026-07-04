@@ -12,6 +12,9 @@ void term_create(lv_obj_t *parent, const char *const argv[],
                  const lv_font_t *font, int cols, int rows,
                  int cell_w, int cell_h);
 
+/* Set the default terminal foreground (theme) for the next term_create. */
+void term_set_theme(uint32_t rgb);
+
 /* Forward an LVGL key (from LV_EVENT_KEY) to the PTY as terminal bytes. */
 void term_feed_key(uint32_t key);
 
