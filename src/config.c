@@ -161,6 +161,17 @@ int config_add(void)
     return s_count++;
 }
 
+int config_dup(int i)   /* clone profile i (name +" copy") -> new index, or -1 */
+{
+    if (i < 0 || i >= s_count || s_count >= CFG_MAX_PROFILES) return -1;
+    profile_t *d = &s_prof[s_count];
+    *d = s_prof[i];
+    char base[32];
+    snprintf(base, sizeof(base), "%.24s copy", s_prof[i].name);
+    snprintf(d->name, sizeof(d->name), "%s", base);
+    return s_count++;
+}
+
 void config_delete(int i)
 {
     if (i < 0 || i >= s_count) return;

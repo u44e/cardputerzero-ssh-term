@@ -35,6 +35,7 @@ int               config_count(void);
 const profile_t  *config_get(int i);          /* NULL if out of range */
 profile_t        *config_mutable(int i);      /* for the editor */
 int               config_add(void);           /* new blank profile -> index, or -1 */
+int               config_dup(int i);           /* clone profile i -> index, or -1 */
 void              config_delete(int i);
 
 int               config_macro_count(void);

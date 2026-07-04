@@ -10,8 +10,11 @@
 #include <unistd.h>
 
 #define MAX_LIST 64
+#define LOG_CAP_DEFAULT (8 * 1024 * 1024)   /* 8 MiB/session — don't fill /sdcard */
 
 static FILE *s_fp = NULL;
+static long  s_written = 0, s_cap = 0;
+static int   s_capped = 0;
 
 static char s_names[MAX_LIST][128];
 static int  s_list_n = 0;
@@ -43,11 +46,20 @@ void logsink_open(const char *profile_name)
     char path[256];
     snprintf(path, sizeof(path), "%s/%s-%s.log", logdir(), safe, ts);
     s_fp = fopen(path, "ab");
+    s_written = 0; s_capped = 0;
+    const char *cap = getenv("TERM_LOGCAP");   /* bytes; 0 = unlimited */
+    s_cap = cap ? atol(cap) : LOG_CAP_DEFAULT;
 }
 
 void logsink_write(const char *buf, int n)
 {
-    if (s_fp && n > 0) { fwrite(buf, 1, (size_t)n, s_fp); fflush(s_fp); }
+    if (!s_fp || n <= 0) return;
+    if (s_cap > 0 && s_written >= s_cap) {     /* cap reached: stop, note it once */
+        if (!s_capped) { fputs("\n[log truncated: size cap reached]\n", s_fp); fflush(s_fp); s_capped = 1; }
+        return;
+    }
+    fwrite(buf, 1, (size_t)n, s_fp); fflush(s_fp);
+    s_written += n;
 }
 
 int logsink_is_open(void) { return s_fp != NULL; }

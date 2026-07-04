@@ -319,8 +319,8 @@ static void show_profiles(void)
     }
 
     lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
-                              tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter  e:edit  n:new  d:del  l:logs  g:JP",
-                                 "↑↓ Enter:接続 e:編集 n:新規 d:削除 l:ログ g:EN"));
+                              tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter e:edit n:new c:copy d:del l:logs g:JP",
+                                 "↑↓ Enter:接続 e:編集 n:新規 c:複製 d:削除 l:ログ g:EN"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -515,6 +515,9 @@ static void key_profiles(uint32_t k)
     default:
         if (k == 'e' && n > 0) { g_field = 0; g_editing = 0; show_editor(g_sel); }
         else if (k == 'n') { int i = config_add(); if (i >= 0) { g_sel = i; g_field = 0; g_editing = 0; show_editor(i); } }
+        else if (k == 'c' && n > 0) {   /* duplicate: clone + open the editor on the copy */
+            int i = config_dup(g_sel); if (i >= 0) { g_sel = i; g_field = 0; g_editing = 0; show_editor(i); }
+        }
         else if (k == 'd' && n > 0) {
             char m[80]; snprintf(m, sizeof(m), tr("Delete \"%s\" ?","\"%s\" を削除?"), config_get(g_sel)->name);
             open_dialog(SCR_PROFILES, COL_RED, tr("Confirm","確認"), m, tr("Delete","削除"), do_delete_cb);
