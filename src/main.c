@@ -694,6 +694,7 @@ static char      g_files[64][96];
 static int       g_file_isdir[64];
 static int       g_files_n = 0;
 static char      g_send_path[256];
+static int       g_send_wait;        /* send dialog: 0 = fixed pace, 1 = wait-for-prompt */
 static char      g_browse_dir[512];        /* current folder in the file browser */
 
 static const char *filedir(void)
@@ -1119,7 +1120,7 @@ static void key_files(uint32_t k)
 static void open_send(void)   /* confirm dialog showing the auto-detected charset */
 {
     g_scr = SCR_SEND;
-    g_overlay = overlay_panel(290, 112);
+    g_overlay = overlay_panel(290, 130);
     const char *enc = sendfile_detect(g_send_path);
     const char *bn = strrchr(g_send_path, '/'); bn = bn ? bn + 1 : g_send_path;
 
@@ -1132,8 +1133,11 @@ static void open_send(void)   /* confirm dialog showing the auto-detected charse
         { tr("File","ファイル"),     bn,  COL_TEXT },
         { tr("Detected","文字コード"), enc, COL_AMBER },
         { tr("Send as","送出形式"),  tr("UTF-8  (auto-convert)","UTF-8 へ自動変換"), COL_CYAN },
+        { tr("Pace","送出速度"),
+          g_send_wait ? tr("< wait-for-prompt >","< プロンプト待ち >")
+                      : tr("< fixed  10ms/line >","< 一定  10ms/行 >"), COL_CYAN },
     };
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 4; i++) {
         lv_obj_t *kk = lv_label_create(g_overlay);
         lv_obj_set_style_text_font(kk, ui_font(12), 0);
         lv_obj_set_style_text_color(kk, lv_color_hex(COL_DIM), 0);
@@ -1146,12 +1150,15 @@ static void open_send(void)   /* confirm dialog showing the auto-detected charse
     lv_obj_t *g = lv_label_create(g_overlay);
     lv_obj_set_style_text_font(g, ui_font(12), 0);
     lv_obj_set_style_text_color(g, lv_color_hex(COL_DIM), 0);
-    lv_obj_set_pos(g, 12, 90); lv_label_set_text(g, tr("Enter Send   ESC Cancel","Enter:送出   ESC:取消"));
+    lv_obj_set_pos(g, 12, 108);
+    lv_label_set_text(g, tr("Enter:send  " LV_SYMBOL_LEFT LV_SYMBOL_RIGHT ":pace  ESC",
+                            "Enter:送出  ←→:速度  ESC:取消"));
 }
 
 static void key_send(uint32_t k)
 {
-    if (k == LV_KEY_ENTER) { sendfile_start(g_send_path); close_overlay(); }
+    if (k == LV_KEY_ENTER) { sendfile_start(g_send_path, g_send_wait); close_overlay(); }
+    else if (k == LV_KEY_LEFT || k == LV_KEY_RIGHT) { g_send_wait = !g_send_wait; open_send(); }
     else if (k == LV_KEY_ESC) open_files();
 }
 
@@ -1341,7 +1348,7 @@ void app_main(lv_obj_t *parent)
     const char *ae = getenv("AUTO_EDIT");    if (ae) show_editor(atoi(ae));
     const char *al = getenv("AUTO_LOGS");    if (al) show_logs();
     const char *alv = getenv("AUTO_LOGVIEW"); if (alv) { logsink_list_count(); show_logview(atoi(alv)); }
-    const char *as = getenv("AUTO_SENDFILE"); if (as) sendfile_start(as);
+    const char *as = getenv("AUTO_SENDFILE"); if (as) sendfile_start(as, getenv("AUTO_SENDWAIT") != NULL);
     const char *am = getenv("AUTO_MENU");     if (am) { g_menu_sel = 0; open_menu(); }
     const char *amc = getenv("AUTO_MACROS");  if (amc) { g_mac_sel = 0; open_macros(); }
     const char *ams = getenv("AUTO_MACRO_SEND"); if (ams) macro_send(atoi(ams));

@@ -30,6 +30,7 @@ static struct {
     volatile int  running;
     volatile int  dirty;
     volatile int  alive;
+    volatile unsigned rx_seq;   /* bumped on every PTY read (output-activity clock) */
     int           inited;      /* resources live (mutex/vt/reader) — destroy guard */
     int           paused;      /* freeze rendering while an overlay covers the term */
     sbline_t     *sb;          /* scrollback ring */
@@ -74,6 +75,7 @@ static void *reader_fn(void *arg)
         pthread_mutex_lock(&g.mtx);
         vterm_input_write(g.vt, buf, (size_t)n);
         g.dirty = 1;
+        g.rx_seq++;                       /* observed by sendfile's wait-for-prompt pacing */
         pthread_mutex_unlock(&g.mtx);
     }
     return NULL;
@@ -403,6 +405,8 @@ int term_is_alive(void)
 {
     return g.alive && g.pty.fd >= 0;
 }
+
+unsigned term_rx_seq(void) { return g.rx_seq; }   /* increments while output arrives */
 
 void term_destroy(void)
 {

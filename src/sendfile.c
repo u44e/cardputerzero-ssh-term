@@ -8,10 +8,20 @@
 #include <string.h>
 #include <iconv.h>
 
+/* wait-for-prompt tuning: after a line is sent, hold the next one until output
+ * has been quiet for SETTLE_MS (device finished echoing/replying); MAX_WAIT_MS
+ * is the ceiling so a line that produces no echo can't stall the whole send. */
+#define SF_SETTLE_MS  150
+#define SF_MAX_WAIT_MS 2500
+
 static struct {
     char   *buf;
     size_t  len, pos;
     lv_timer_t *tmr;
+    int      wait;          /* 0 = fixed pace, 1 = wait-for-prompt (idle-settle) */
+    unsigned last_seq;      /* term_rx_seq() at the previous tick */
+    uint32_t idle_tick;     /* lv_tick when output last went quiet */
+    uint32_t sent_tick;     /* lv_tick when the current line was sent */
 } sf;
 
 static int valid_utf8(const unsigned char *b, size_t n)
@@ -84,6 +94,17 @@ static char *to_utf8(const char *in, size_t inlen, const char *from, size_t *out
     return out;
 }
 
+static void sf_send_line(void)
+{
+    size_t end = sf.pos;
+    while (end < sf.len && sf.buf[end] != '\n') end++;
+    if (end < sf.len) end++;   /* include the newline */
+    term_send_bytes(sf.buf + sf.pos, (int)(end - sf.pos));
+    sf.pos = end;
+    sf.sent_tick = sf.idle_tick = lv_tick_get();
+    sf.last_seq = term_rx_seq();
+}
+
 static void sf_tick(lv_timer_t *t)
 {
     if (!sf.buf || sf.pos >= sf.len) {
@@ -91,15 +112,17 @@ static void sf_tick(lv_timer_t *t)
         free(sf.buf); sf.buf = NULL;
         return;
     }
-    /* send one line per tick (gentle on slow CLIs) */
-    size_t end = sf.pos;
-    while (end < sf.len && sf.buf[end] != '\n') end++;
-    if (end < sf.len) end++;   /* include the newline */
-    term_send_bytes(sf.buf + sf.pos, (int)(end - sf.pos));
-    sf.pos = end;
+    if (!sf.wait) { sf_send_line(); return; }   /* fixed pace: one line per tick */
+
+    /* wait-for-prompt: send the next line only once output has settled. */
+    unsigned seq = term_rx_seq();
+    if (seq != sf.last_seq) { sf.last_seq = seq; sf.idle_tick = lv_tick_get(); }  /* still talking */
+    if (lv_tick_elaps(sf.idle_tick) >= SF_SETTLE_MS ||
+        lv_tick_elaps(sf.sent_tick) >= SF_MAX_WAIT_MS)
+        sf_send_line();
 }
 
-int sendfile_start(const char *path)
+int sendfile_start(const char *path, int wait_prompt)
 {
     FILE *f = fopen(path, "rb");
     if (!f) return -1;
@@ -119,7 +142,11 @@ int sendfile_start(const char *path)
 
     sendfile_cancel();
     sf.buf = u; sf.len = ol; sf.pos = 0;
-    sf.tmr = lv_timer_create(sf_tick, 10, NULL);   /* one line/tick; paced for slow CLIs */
+    sf.wait = wait_prompt ? 1 : 0;
+    sf.last_seq = term_rx_seq();
+    sf.idle_tick = sf.sent_tick = lv_tick_get();
+    /* 10ms in fixed-pace mode; 30ms is fine when we're just polling for idle */
+    sf.tmr = lv_timer_create(sf_tick, sf.wait ? 30 : 10, NULL);
     return 0;
 }
 

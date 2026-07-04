@@ -24,6 +24,10 @@ void term_resize(const lv_font_t *font, int cols, int rows, int cell_w, int cell
 /* 1 while the child/PTY is alive, 0 after it exits. */
 int term_is_alive(void);
 
+/* Monotonic counter bumped on every PTY read — an "output activity" clock the
+ * file-injection wait-for-prompt pacing polls to know when output has settled. */
+unsigned term_rx_seq(void);
+
 /* Tear down: stop reader thread, close PTY, free vterm. */
 void term_destroy(void);
 

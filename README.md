@@ -28,7 +28,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | **Font size** (per-profile + live via menu / editor Size field) 12/16/20px | ✅ working |
 | Status bar (name / CONNECTED / REC / SIDE) | ✅ working |
 | Session logging (raw tee) + log browser (ANSI-stripped, scrollable) | ✅ working |
-| File injection (any text — configs, scripts, snippets): **charset auto-detect → iconv → paced send** + dialog | ✅ working |
+| File injection (any text — configs, scripts, snippets): **charset auto-detect → iconv → send**; pace = fixed 10ms/line **or wait-for-prompt** (idle-settle, prompt-agnostic) | ✅ working |
 | Session menu + file browser (Send file) + **confirm dialog** (delete / VPN-fail) | ✅ working |
 | Japanese input: **OS IME (fcitx5-mozc) via SDL_TEXTINPUT** — system toggle (Ctrl+Space), same as other apps; no in-app IME | ✅ plumbed (needs IME running) |
 | **VPN type selector** (iPhone-style): WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale | ✅ UI |
