@@ -38,7 +38,8 @@
 
 enum { SCR_PROFILES, SCR_EDITOR, SCR_TERM, SCR_LOGS, SCR_LOGVIEW, SCR_MENU, SCR_FILES,
        SCR_SEND, SCR_DIALOG, SCR_TERM_DISC,     /* _DISC = session ended, output frozen for review */
-       SCR_MACROS, SCR_MACRO_EDIT };            /* quick-send macro picker + editor (overlays) */
+       SCR_MACROS, SCR_MACRO_EDIT,              /* quick-send macro picker + editor (overlays) */
+       SCR_TERM_FIND };                         /* scrollback search (from Session Menu) */
 
 static lv_obj_t   *g_root;
 static int         g_scr = SCR_PROFILES;
@@ -57,6 +58,7 @@ static lv_obj_t   *g_scrollhint;           /* hint shown while in terminal scrol
 static lv_obj_t   *g_copybar, *g_copyhint; /* line-copy mode highlight + hint */
 static int         g_copy_row = -1;        /* -1 = copy mode off; else highlighted row */
 static lv_obj_t   *g_sendprog;             /* file-injection progress badge (status bar) */
+static lv_obj_t   *g_findhint;             /* scrollback-search bottom bar */
 static lv_obj_t   *g_logview_ta;           /* log viewer scrollable textarea */
 static lv_obj_t   *g_logprompt;            /* log viewer bottom line (guide / find box) */
 static char        g_logbuf[8192];         /* stripped log text (searched in place) */
@@ -293,7 +295,7 @@ static void show_profiles(void)
     lv_obj_clean(g_root);
     g_sb_time = NULL; g_scrollhint = NULL;   /* labels were just deleted */
     g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1; g_sendprog = NULL;
-    g_logview_ta = NULL; g_logprompt = NULL;
+    g_logview_ta = NULL; g_logprompt = NULL; g_findhint = NULL;
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
@@ -1052,8 +1054,62 @@ static void term_alt_scroll(uint32_t base)
     scroll_hint(term_scroll_pos() > 0);
 }
 
+/* ---- scrollback search (Session Menu -> Find): freeze, type, jump to match ---- */
+static char g_findq[48];
+static int  g_find_typing, g_find_after;
+#define FIND_FROM_NEWEST (1 << 30)
+
+static void find_hint(void)
+{
+    if (!g_findhint) return;
+    char s[80];
+    if (g_find_typing) snprintf(s, sizeof s, tr("find: %s_","検索: %s_"), g_ebuf);
+    else               snprintf(s, sizeof s, tr("[%s]  n:next  ESC:live","[%s] n:次 ESC:最新"), g_findq);
+    lv_label_set_text(g_findhint, s);
+}
+
+static void find_run(void)   /* search older-first from g_find_after, jump to the match */
+{
+    int ml, sc = term_find(g_findq, g_find_after, &ml);
+    if (sc >= 0) { term_scroll_to(sc); term_render_once(); g_find_after = ml; find_hint(); }
+    else if (g_findhint) lv_label_set_text(g_findhint, tr("not found  ESC","見つかりません ESC"));
+}
+
+static void open_find(void)   /* enter search mode over the frozen terminal */
+{
+    g_scr = SCR_TERM_FIND;
+    g_ebuf[0] = 0; g_findq[0] = 0; g_find_typing = 1; g_find_after = FIND_FROM_NEWEST;
+    term_render_pause(1); term_render_once();
+    g_findhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
+    lv_obj_set_style_bg_color(g_findhint, lv_color_hex(0x10101E), 0);
+    lv_obj_set_style_bg_opa(g_findhint, LV_OPA_COVER, 0);
+    lv_obj_set_width(g_findhint, 320);
+    find_hint();
+}
+
+static void close_find(void)
+{
+    if (g_findhint) { lv_obj_delete(g_findhint); g_findhint = NULL; }
+    term_scroll_reset();
+    term_render_pause(0);
+    g_scr = SCR_TERM;
+}
+
+static void key_find(uint32_t k)
+{
+    if (g_find_typing) {
+        if (k == LV_KEY_ENTER)      { snprintf(g_findq, sizeof g_findq, "%s", g_ebuf); g_find_typing = 0; g_find_after = FIND_FROM_NEWEST; if (g_findq[0]) find_run(); else find_hint(); }
+        else if (k == LV_KEY_ESC)   close_find();
+        else if (k == LV_KEY_BACKSPACE) { size_t l = strlen(g_ebuf); if (l) g_ebuf[l-1] = 0; find_hint(); }
+        else if (k >= 0x20 && k < 0x7f) { size_t l = strlen(g_ebuf); if (l < sizeof(g_ebuf)-1) { g_ebuf[l]=(char)k; g_ebuf[l+1]=0; } find_hint(); }
+        return;
+    }
+    if (k == LV_KEY_ESC) close_find();
+    else if ((k == 'n' || k == 'N' || k == LV_KEY_ENTER) && g_findq[0]) find_run();
+}
+
 /* menu items are built per open: BREAK appears only for a serial console */
-enum { MI_SEND, MI_FONT, MI_MACROS, MI_LOG, MI_BREAK, MI_CLOSE, MI_BACK };
+enum { MI_SEND, MI_FONT, MI_MACROS, MI_FIND, MI_LOG, MI_BREAK, MI_CLOSE, MI_BACK };
 static int g_menu_items[8], g_menu_n;
 
 static void build_menu(void)
@@ -1062,6 +1118,7 @@ static void build_menu(void)
     g_menu_items[n++] = MI_SEND;
     g_menu_items[n++] = MI_FONT;
     g_menu_items[n++] = MI_MACROS;
+    g_menu_items[n++] = MI_FIND;
     g_menu_items[n++] = MI_LOG;
     const profile_t *p = config_get(g_cur_pidx);
     if (p && !strcmp(p->proto, "serial")) g_menu_items[n++] = MI_BREAK;
@@ -1075,6 +1132,7 @@ static const char *menu_label(int id)
     switch (id) {
     case MI_SEND:   return tr("Send file...","ファイル流し込み...");
     case MI_MACROS: return tr("Macros...","マクロ...");
+    case MI_FIND:   return tr("Find...","検索...");
     case MI_LOG:    return tr("Toggle log","ログ ON/OFF");
     case MI_BREAK:  return tr("Send BREAK","BREAK送信");
     case MI_CLOSE:  return tr("Close session","切断");
@@ -1262,6 +1320,7 @@ static void key_menu(uint32_t k)
             open_menu();                                      /* refresh label */
             break;
         case MI_MACROS: g_mac_sel = 0; open_macros(); break;  /* overlay; term stays behind */
+        case MI_FIND:   kill_overlay(); open_find(); break;   /* scrollback search over the term */
         case MI_LOG:
             if (logsink_is_open()) logsink_close();
             else logsink_open(config_get(g_cur_pidx) ? config_get(g_cur_pidx)->name : "session");
@@ -1388,6 +1447,7 @@ void key_cb(lv_event_t *e)
     case SCR_MENU:     key_menu(k); break;
     case SCR_MACROS:   key_macros(k); break;
     case SCR_MACRO_EDIT: key_macro_edit(k); break;
+    case SCR_TERM_FIND: key_find(k); break;
     case SCR_FILES:    key_files(k); break;
     case SCR_SEND:     key_send(k); break;
     case SCR_DIALOG:   key_dialog(k); break;
@@ -1411,6 +1471,17 @@ static void sendprog_tick(lv_timer_t *t)
         lv_obj_delete(g_sendprog); g_sendprog = NULL;
     }
 }
+
+#if defined(SSH_TERM_TEST_HOOKS)
+static void autofind_cb(lv_timer_t *t)   /* headless: run Find once output exists */
+{
+    lv_timer_delete(t);
+    if (g_scr != SCR_TERM) return;
+    open_find();
+    snprintf(g_findq, sizeof g_findq, "%s", getenv("AUTO_FIND"));
+    g_find_typing = 0; g_find_after = FIND_FROM_NEWEST; find_run();
+}
+#endif
 
 static void watch_cb(lv_timer_t *t)
 {
@@ -1453,6 +1524,7 @@ void app_main(lv_obj_t *parent)
     const char *ams = getenv("AUTO_MACRO_SEND"); if (ams) macro_send(atoi(ams));
     const char *ame = getenv("AUTO_MACRO_EDIT"); if (ame) open_macro_edit(atoi(ame));
     const char *acp = getenv("AUTO_COPYMODE"); if (acp) copy_mode_on();
+    if (getenv("AUTO_FIND")) lv_timer_create(autofind_cb, 1500, NULL);   /* after output exists */
     const char *af = getenv("AUTO_FILES");    if (af) { g_file_sel = 0;
         snprintf(g_browse_dir, sizeof(g_browse_dir), "%s", filedir()); open_files(); }
     const char *ad = getenv("AUTO_SENDDLG"); if (ad) { snprintf(g_send_path, sizeof(g_send_path), "%s", ad); open_send(); }

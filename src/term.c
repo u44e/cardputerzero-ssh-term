@@ -145,14 +145,20 @@ void term_scroll(int delta)   /* +up (into history), -down (toward live) */
 void term_scroll_reset(void) { pthread_mutex_lock(&g.mtx); g.scroll = 0; g.dirty = 1; pthread_mutex_unlock(&g.mtx); }
 int  term_scroll_pos(void)   { return g.scroll; }
 
-/* Copy one on-screen content line (screen_row 0..rows-1, honoring the current
- * scroll offset) as UTF-8 into out; trailing blanks trimmed. Returns length. */
-int term_copy_line(int screen_row, char *out, size_t outsz)
+void term_scroll_to(int offset)   /* set the scroll offset directly (0 = live) */
 {
-    if (!g.vt || !out || outsz == 0) return 0;
-    size_t li = 0;
     pthread_mutex_lock(&g.mtx);
-    int idx = g.sb_n - g.scroll + screen_row;
+    g.scroll = offset < 0 ? 0 : offset > g.sb_n ? g.sb_n : offset;
+    g.dirty = 1;
+    pthread_mutex_unlock(&g.mtx);
+}
+
+/* Extract absolute content line `idx` (0..sb_n-1 = history ring, >=sb_n = live
+ * screen row idx-sb_n) as UTF-8 into out, trailing blanks trimmed. Caller holds
+ * g.mtx. Returns length. */
+static int extract_line(int idx, char *out, size_t outsz)
+{
+    size_t li = 0;
     if (idx >= g.sb_n) {                          /* live screen row */
         int row = idx - g.sb_n;
         for (int c = 0; row < g.rows && c < g.cols; ) {
@@ -170,10 +176,46 @@ int term_copy_line(int screen_row, char *out, size_t outsz)
             if (li + 4 < outsz) li += cp_to_utf8(cp, out + li);
         }
     }
-    pthread_mutex_unlock(&g.mtx);
     out[li] = 0;
-    while (li > 0 && out[li - 1] == ' ') out[--li] = 0;   /* trim trailing blanks */
+    while (li > 0 && out[li - 1] == ' ') out[--li] = 0;
     return (int)li;
+}
+
+/* Copy the visible content line at screen_row (honoring scroll) as UTF-8. */
+int term_copy_line(int screen_row, char *out, size_t outsz)
+{
+    if (!g.vt || !out || outsz == 0) return 0;
+    pthread_mutex_lock(&g.mtx);
+    int r = extract_line(g.sb_n - g.scroll + screen_row, out, outsz);
+    pthread_mutex_unlock(&g.mtx);
+    return r;
+}
+
+/* Search content lines (older-first, wrapping) for needle starting strictly
+ * above content line `after` (pass a large value to start from the newest).
+ * Returns the scroll offset that puts the match on the bottom visible row, or
+ * -1; *match_line gets the matched content-line index. */
+int term_find(const char *needle, int after, int *match_line)
+{
+    if (!g.vt || !needle || !needle[0]) return -1;
+    char line[MAX_COLS * 4 + 1];
+    pthread_mutex_lock(&g.mtx);
+    int total = g.sb_n + g.rows, found = -1;
+    if (after < 0 || after > total) after = total;
+    for (int k = 1; k <= total; k++) {
+        int L = ((after - k) % total + total) % total;   /* go older, wrap once */
+        extract_line(L, line, sizeof line);
+        if (line[0] && strstr(line, needle)) { found = L; break; }
+    }
+    int scroll = -1;
+    if (found >= 0) {
+        scroll = g.sb_n + g.rows - 1 - found;            /* match on the bottom row */
+        if (scroll < 0) scroll = 0;
+        if (scroll > g.sb_n) scroll = g.sb_n;
+    }
+    pthread_mutex_unlock(&g.mtx);
+    if (found >= 0 && match_line) *match_line = found;
+    return scroll;
 }
 
 static void clear_runs(int r)

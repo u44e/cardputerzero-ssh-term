@@ -42,6 +42,12 @@ void term_render_once(void);   /* force one repaint even while paused (copy-mode
 void term_scroll(int delta);
 void term_scroll_reset(void);   /* jump back to the live bottom */
 int  term_scroll_pos(void);     /* current offset (0 = live) */
+void term_scroll_to(int offset); /* set the scroll offset directly (0 = live) */
+
+/* Find `needle` in the scrollback+screen, older-first from above content line
+ * `after` (large = from newest). Returns the scroll offset to view the match
+ * (bottom row) or -1; *match_line gets the matched content-line index. */
+int  term_find(const char *needle, int after, int *match_line);
 
 /* Copy the visible content line at screen_row (honors the scroll offset) as
  * UTF-8 into out (trailing blanks trimmed). Returns the length. */
