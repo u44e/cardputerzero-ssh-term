@@ -54,6 +54,8 @@ static int g_cols = 45, g_rows = 12, g_cw = 7, g_ch = 12;
 static lv_obj_t   *g_overlay;              /* menu/dialog/send/files panel (child of backdrop) */
 static lv_obj_t   *g_backdrop;             /* full-screen opaque cover behind the panel */
 static lv_obj_t   *g_scrollhint;           /* hint shown while in terminal scroll mode */
+static lv_obj_t   *g_copybar, *g_copyhint; /* line-copy mode highlight + hint */
+static int         g_copy_row = -1;        /* -1 = copy mode off; else highlighted row */
 static lv_obj_t   *g_logview_ta;           /* log viewer scrollable textarea */
 
 /* editor state */
@@ -279,6 +281,7 @@ static void show_profiles(void)
     g_scr = SCR_PROFILES;
     lv_obj_clean(g_root);
     g_sb_time = NULL; g_scrollhint = NULL;   /* labels were just deleted */
+    g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1;
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
@@ -537,6 +540,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
 
     g_overlay = NULL; g_backdrop = NULL;   /* cleaned by lv_obj_clean below */
     g_scrollhint = NULL;                   /* ditto — reconnect path never passes show_profiles */
+    g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1;
     term_render_pause(0);
     lv_obj_clean(g_root);
     lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), 0);
@@ -877,6 +881,73 @@ static void scroll_hint(int on)   /* bottom indicator while viewing history */
     }
 }
 
+/* ---- line-copy mode (Alt+c): highlight a line, Enter copies, Alt+v pastes ----
+ * Internal one-line clipboard: pick up an IP / command / error from the output
+ * (incl. scrollback history) and re-send it. Alt+c/Alt+v shadow Meta-c/Meta-v. */
+static void term_alt_scroll(uint32_t base);
+static char g_clip[520];               /* internal clipboard: one line */
+
+static void copy_bar_place(void)
+{
+    if (!g_copybar) return;
+    lv_obj_set_pos(g_copybar, 0, g_copy_row * g_ch);
+    lv_obj_move_foreground(g_copybar);
+    if (g_copyhint) lv_obj_move_foreground(g_copyhint);
+}
+
+static void copy_mode_off(void)
+{
+    if (g_copybar)  { lv_obj_delete(g_copybar);  g_copybar = NULL; }
+    if (g_copyhint) { lv_obj_delete(g_copyhint); g_copyhint = NULL; }
+    g_copy_row = -1;
+}
+
+static void copy_mode_on(void)
+{
+    if (g_copy_row >= 0) return;
+    g_copy_row = g_rows - 1;
+    g_copybar = lv_obj_create(g_root);
+    lv_obj_remove_flag(g_copybar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_border_width(g_copybar, 0, 0);
+    lv_obj_set_style_radius(g_copybar, 0, 0);
+    lv_obj_set_style_bg_color(g_copybar, lv_color_hex(COL_CYAN), 0);
+    lv_obj_set_style_bg_opa(g_copybar, LV_OPA_30, 0);
+    lv_obj_set_size(g_copybar, 320, g_ch);
+    g_copyhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
+    lv_obj_set_style_bg_color(g_copyhint, lv_color_hex(0x10101E), 0);
+    lv_obj_set_style_bg_opa(g_copyhint, LV_OPA_COVER, 0);
+    lv_obj_set_width(g_copyhint, 320);
+    lv_label_set_text(g_copyhint, tr("copy  " LV_SYMBOL_UP LV_SYMBOL_DOWN ":line  Enter:copy  ESC",
+                                     "コピー  ↑↓:行  Enter:コピー  ESC"));
+    copy_bar_place();
+}
+
+static void copy_mode_key(uint32_t k)
+{
+    if (k & 0x20000000u) {                       /* Alt+arrow still pages the history */
+        term_alt_scroll(k & 0xFF);
+        copy_bar_place();
+        return;
+    }
+    switch (k) {
+    case LV_KEY_UP:
+        if (g_copy_row > 0) g_copy_row--;
+        else term_scroll(+1);                    /* highlight at the top -> scroll history */
+        copy_bar_place(); break;
+    case LV_KEY_DOWN:
+        if (g_copy_row < g_rows - 1) g_copy_row++;
+        else if (term_scroll_pos() > 0) term_scroll(-1);
+        copy_bar_place(); break;
+    case LV_KEY_ENTER:
+        term_copy_line(g_copy_row, g_clip, sizeof(g_clip));
+        copy_mode_off();
+        break;
+    case LV_KEY_ESC:
+        copy_mode_off();
+        break;
+    }
+}
+
 /* Alt + arrow scrolls the scrollback while staying in the live terminal. */
 static void term_alt_scroll(uint32_t base)
 {
@@ -1145,6 +1216,10 @@ static void key_dialog(uint32_t k)
 void key_cb(lv_event_t *e)
 {
     uint32_t k = lv_event_get_key(e);
+    if (g_copy_row >= 0 && (g_scr == SCR_TERM || g_scr == SCR_TERM_DISC)) {
+        copy_mode_key(k);                                            /* line-copy mode eats keys */
+        return;
+    }
     switch (g_scr) {
     case SCR_TERM:
         if (k & 0x20000000u) {                                       /* Alt-tagged key */
@@ -1153,7 +1228,12 @@ void key_cb(lv_event_t *e)
                 term_alt_scroll(b);                                  /* Alt+arrow -> scrollback */
                 break;
             }
+            if (b == 'c') { copy_mode_on(); break; }                 /* line-copy (keeps scroll pos) */
             if (term_scroll_pos() > 0) { term_scroll_reset(); scroll_hint(0); }
+            if (b == 'v') {                                          /* paste the internal clipboard */
+                if (g_clip[0] && term_is_alive()) term_send_bytes(g_clip, (int)strlen(g_clip));
+                break;
+            }
             if (b >= 0x20 && b < 0x7f) {                             /* Alt+printable -> Meta
                                                                         (ESC-prefix, readline/emacs) */
                 char m[2] = { 0x1b, (char)b };
@@ -1165,7 +1245,10 @@ void key_cb(lv_event_t *e)
         term_feed_key(k);
         break;
     case SCR_TERM_DISC:                                            /* session ended: review output */
-        if (k & 0x20000000u) { term_alt_scroll(k & 0xFF); break; } /* Alt+arrow -> scroll history */
+        if (k & 0x20000000u) {
+            if ((k & 0xFF) == 'c') { copy_mode_on(); break; }      /* grab an error line */
+            term_alt_scroll(k & 0xFF); break;                      /* Alt+arrow -> scroll history */
+        }
         if (lv_tick_elaps(g_disc_tick) < 600) break;   /* grace: the flip is async (400ms poll) —
                                                           don't turn an in-flight keystroke into r/Enter */
         if (k == 'r' || k == 'R')                       reconnect_session();
@@ -1225,6 +1308,7 @@ void app_main(lv_obj_t *parent)
     const char *amc = getenv("AUTO_MACROS");  if (amc) { g_mac_sel = 0; open_macros(); }
     const char *ams = getenv("AUTO_MACRO_SEND"); if (ams) macro_send(atoi(ams));
     const char *ame = getenv("AUTO_MACRO_EDIT"); if (ame) open_macro_edit(atoi(ame));
+    const char *acp = getenv("AUTO_COPYMODE"); if (acp) copy_mode_on();
     const char *af = getenv("AUTO_FILES");    if (af) { g_file_sel = 0;
         snprintf(g_browse_dir, sizeof(g_browse_dir), "%s", filedir()); open_files(); }
     const char *ad = getenv("AUTO_SENDDLG"); if (ad) { snprintf(g_send_path, sizeof(g_send_path), "%s", ad); open_send(); }

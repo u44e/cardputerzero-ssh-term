@@ -4,6 +4,7 @@
 #define SSH_TERM_TERM_H
 
 #include <lvgl.h>
+#include <stddef.h>
 
 /* Create the terminal: spawn argv[] on a PTY (cols x rows) and render it on
  * `parent` using `font` (monospace). cell_w/cell_h = grid pitch in px. */
@@ -33,5 +34,9 @@ void term_render_pause(int paused);
 void term_scroll(int delta);
 void term_scroll_reset(void);   /* jump back to the live bottom */
 int  term_scroll_pos(void);     /* current offset (0 = live) */
+
+/* Copy the visible content line at screen_row (honors the scroll offset) as
+ * UTF-8 into out (trailing blanks trimmed). Returns the length. */
+int  term_copy_line(int screen_row, char *out, size_t outsz);
 
 #endif /* SSH_TERM_TERM_H */

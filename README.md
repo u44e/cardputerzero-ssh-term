@@ -23,6 +23,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | Connection profiles (list / **editor** CRUD / persistence) | ✅ working |
 | Terminal render: Liberation Mono 45×12 (freetype; CJK + unscii_8 fallback) | ✅ working |
 | **Scrollback** (400-line ring): **Alt+↑↓** line / **Alt+←→** page — stays live; typing returns to latest | ✅ working |
+| **Line copy & paste**: **Alt+c** highlight a line (arrows, incl. history) → Enter copies; **Alt+v** pastes (internal clipboard; works on the disconnect screen too) | ✅ working |
 | **Font size** (per-profile + live via menu / editor Size field) 12/16/20px | ✅ working |
 | Status bar (name / CONNECTED / REC / SIDE) | ✅ working |
 | Session logging (raw tee) + log browser (ANSI-stripped, scrollable) | ✅ working |

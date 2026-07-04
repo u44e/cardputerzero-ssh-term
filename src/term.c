@@ -133,6 +133,37 @@ void term_scroll(int delta)   /* +up (into history), -down (toward live) */
 void term_scroll_reset(void) { pthread_mutex_lock(&g.mtx); g.scroll = 0; g.dirty = 1; pthread_mutex_unlock(&g.mtx); }
 int  term_scroll_pos(void)   { return g.scroll; }
 
+/* Copy one on-screen content line (screen_row 0..rows-1, honoring the current
+ * scroll offset) as UTF-8 into out; trailing blanks trimmed. Returns length. */
+int term_copy_line(int screen_row, char *out, size_t outsz)
+{
+    if (!g.vt || !out || outsz == 0) return 0;
+    size_t li = 0;
+    pthread_mutex_lock(&g.mtx);
+    int idx = g.sb_n - g.scroll + screen_row;
+    if (idx >= g.sb_n) {                          /* live screen row */
+        int row = idx - g.sb_n;
+        for (int c = 0; row < g.rows && c < g.cols; ) {
+            VTermPos pos; pos.row = row; pos.col = c;
+            VTermScreenCell cell;
+            if (!vterm_screen_get_cell(g.vts, pos, &cell)) { c++; continue; }
+            uint32_t cp = cell.chars[0]; if (cp == 0 || cp == (uint32_t)-1) cp = ' ';
+            if (li + 4 < outsz) li += cp_to_utf8(cp, out + li);
+            c += cell.width > 0 ? cell.width : 1;
+        }
+    } else if (idx >= 0 && g.sb) {                /* scrollback history line */
+        sbline_t *L = &g.sb[(g.sb_head + idx) % SB_CAP];
+        for (int c = 0; c < L->len; c++) {
+            uint32_t cp = L->cp[c] ? L->cp[c] : ' ';
+            if (li + 4 < outsz) li += cp_to_utf8(cp, out + li);
+        }
+    }
+    pthread_mutex_unlock(&g.mtx);
+    out[li] = 0;
+    while (li > 0 && out[li - 1] == ' ') out[--li] = 0;   /* trim trailing blanks */
+    return (int)li;
+}
+
 static void clear_runs(int r)
 {
     for (int i = 0; i < g.runs[r]; i++)
