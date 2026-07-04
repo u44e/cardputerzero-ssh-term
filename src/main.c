@@ -56,6 +56,7 @@ static lv_obj_t   *g_backdrop;             /* full-screen opaque cover behind th
 static lv_obj_t   *g_scrollhint;           /* hint shown while in terminal scroll mode */
 static lv_obj_t   *g_copybar, *g_copyhint; /* line-copy mode highlight + hint */
 static int         g_copy_row = -1;        /* -1 = copy mode off; else highlighted row */
+static lv_obj_t   *g_sendprog;             /* file-injection progress badge (status bar) */
 static lv_obj_t   *g_logview_ta;           /* log viewer scrollable textarea */
 
 /* editor state */
@@ -286,7 +287,7 @@ static void show_profiles(void)
     g_scr = SCR_PROFILES;
     lv_obj_clean(g_root);
     g_sb_time = NULL; g_scrollhint = NULL;   /* labels were just deleted */
-    g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1;
+    g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1; g_sendprog = NULL;
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
@@ -558,7 +559,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
 
     g_overlay = NULL; g_backdrop = NULL;   /* cleaned by lv_obj_clean below */
     g_scrollhint = NULL;                   /* ditto — reconnect path never passes show_profiles */
-    g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1;
+    g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1; g_sendprog = NULL;
     term_render_pause(0);
     lv_obj_clean(g_root);
     lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), 0);
@@ -1322,6 +1323,24 @@ void key_cb(lv_event_t *e)
     }
 }
 
+/* file-injection progress badge in the status-bar strip while a send runs */
+static void sendprog_tick(lv_timer_t *t)
+{
+    (void)t;
+    if (sendfile_active() && (g_scr == SCR_TERM || g_scr == SCR_TERM_DISC)) {
+        if (!g_sendprog) {
+            g_sendprog = mklabel(ui_font(12), COL_AMBER, 250, 156, "");
+            lv_obj_set_style_bg_color(g_sendprog, lv_color_hex(0x0A0A10), 0);
+            lv_obj_set_style_bg_opa(g_sendprog, LV_OPA_COVER, 0);
+        }
+        char s[16]; snprintf(s, sizeof(s), "SEND %d%%", sendfile_progress());
+        lv_label_set_text(g_sendprog, s);
+        lv_obj_move_foreground(g_sendprog);
+    } else if (g_sendprog) {
+        lv_obj_delete(g_sendprog); g_sendprog = NULL;
+    }
+}
+
 static void watch_cb(lv_timer_t *t)
 {
     (void)t;
@@ -1346,6 +1365,7 @@ void app_main(lv_obj_t *parent)
     show_profiles();
     g_watch = lv_timer_create(watch_cb, 400, NULL);
     lv_timer_create(statusbar_tick, 2000, NULL);   /* live clock / wifi / battery */
+    lv_timer_create(sendprog_tick, 200, NULL);     /* file-injection progress badge */
 
 #if defined(SSH_TERM_TEST_HOOKS)
     /* Headless test hooks — emulator/CI only; NOT compiled into device builds. */
