@@ -50,6 +50,7 @@
 |------|------|
 | Name | 表示名 |
 | Host / Port / User | 接続先 |
+| Key | SSH の**秘密鍵ファイル**のパス（任意、ssh 時のみ表示 → `-i` で使用。空なら既定鍵/パスワード） |
 | Proto | `ssh / telnet / shell / serial`（`←→`で切替） |
 | **VPN type** | `none / WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale`（iPhone風に`←→`で選択） |
 | **Connection** | OS側 VPN 接続の**名前**（NM接続名 / wg・ovpn の config名 / ipsec connection名）。**秘密情報は入力せず OS が保持**。Tailscale は不要 |
@@ -58,9 +59,13 @@
 
 操作：`↑↓`項目移動 / `Enter`テキスト編集（物理キーボードで入力→`Enter`確定）/ `←→`選択項目の切替 / `s`保存 / `ESC`戻る。
 
-> **serial（USB-シリアルコンソール）**：Proto を `serial` にすると項目が **Device**（例 `/dev/ttyUSB0`）と
-> **Baud**（例 `9600`/`115200`）に変わります（User/VPN は非表示）。接続すると `picocom` でシリアルコンソールに
-> つながります（実機に `apt install picocom` が必要）。網機器のコンソールポート接続用です。
+> **serial（USB-シリアルコンソール）**：Proto を `serial` にすると項目が **Device**（例 `/dev/ttyUSB0`）・
+> **Baud**（例 `9600`/`115200`）・**Format**（`8N1`/`7E1`/`7O1`/`8N2` を `←→` で選択）に変わります
+> （User/VPN は非表示）。接続すると `picocom` でシリアルコンソールにつながります（実機に
+> `apt install picocom` が必要）。網機器のコンソールポート接続用で、Session Menu の **Send BREAK** で
+> BREAK 信号も送れます（ルータのパスワードリカバリ等）。
+>
+> ssh は **keep-alive を常時付与**（`ServerAliveInterval=30`）するため、回線断は約90秒以内に切断として検知されます。
 
 ![serial プロファイル編集](manual/12_serial.png)
 
@@ -100,6 +105,7 @@
 | Font size `< 12px >` | フォントサイズを実行中に変更 |
 | Macros... | 登録済みコマンドを選んで送信（→ 5b章） |
 | Toggle log | ログ保存のON/OFF |
+| Send BREAK | **BREAK信号を送出**（serial 接続時のみ表示。パスワードリカバリ等） |
 | Close session | セッション終了→一覧へ |
 | Back | メニューを閉じる |
 

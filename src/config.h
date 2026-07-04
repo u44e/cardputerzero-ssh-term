@@ -12,6 +12,8 @@ typedef struct {
     char host[128];
     char port[8];
     char user[64];
+    char key[96];    /* ssh identity file (-i); empty = default keys/password */
+    char sfmt[4];    /* serial format preset: 8N1 (default) | 7E1 | 7O1 | 8N2 */
     char vpn_type[12]; /* none|wireguard|openvpn|ikev2|l2tp|tailscale */
     char vpn[96];    /* OS-side connection/config NAME to bring up. Secrets live in
                       * the OS (NetworkManager / /etc/wireguard …), never stored here. */

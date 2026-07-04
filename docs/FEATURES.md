@@ -9,7 +9,7 @@
 |------|:--:|
 | **libvterm(MIT)** によるVT100/ANSI完全エミュレーション（カーソル/消去/スクロール領域/挿入削除/alt-screen/DECモード/DA・DSR応答/アプリカーソルキー） | ✅ |
 | **自前 forkpty** によるPTY子プロセス管理（著作権クリーン、launcherコード非流用） | ✅ |
-| **SGRカラー**（8/16/256色・truecolor、**前景＋背景色・反転(reverse)・下線**、色ラン毎ラベル描画、既定は緑/黒＝ネイティブ忠実） | ✅ |
+| **SGRカラー**（8/16/256色・truecolor、**前景＋背景色・反転(reverse)・下線・太字（明色化）**、色ラン毎ラベル描画、既定は緑/黒＝ネイティブ忠実） | ✅ |
 | 等幅フォント = **Liberation Mono 12px → 45桁×12行**（実機常駐をfreetype読込、unscii_8フォールバック） | ✅ |
 | ブロックカーソル、readerスレッド＋40ms描画タイマ＋dirty差分 | ✅ |
 | **スクロールバック**（400行リングバッファ）：**Alt+↑↓=1行 / Alt+←→=1画面** で履歴を遡る（ライブ維持）・入力で最新へ復帰・履歴表示中はヒントバー | ✅ |
@@ -20,7 +20,10 @@
 | 機能 | 状態 |
 |------|:--:|
 | プロトコル選択：**ssh / telnet / shell（ローカル端末）/ serial（USB-シリアルコンソール）** | ✅ |
-| **serial**：`picocom -b <baud> <device>` を実行（プロファイルの Host→デバイス `/dev/ttyUSB0`、Port→ボーレート に流用。User/VPN欄は非表示） | ✅(argv) / ⏳(実機picocom) |
+| **serial**：`picocom -b <baud> -d/-y/-p <fmt> <device>` を実行（Host→デバイス、Port→ボーレート。**Format プリセット 8N1/7E1/7O1/8N2**。User/VPN欄は非表示） | ✅(argv) / ⏳(実機picocom) |
+| **serial BREAK送信**（Session Menu、serial時のみ表示。picocom escape `C-a C-b` — ルータのパスワードリカバリ用） | ✅(UI) / ⏳(実機) |
+| **ssh keep-alive**（`ServerAliveInterval=30` / `CountMax=3` を常時付与 — 現場の不安定な回線で切断を確実に検知） | ✅ |
+| **ssh 鍵ファイル指定**（プロファイル毎 Key 欄 → `-i <path>`。未指定なら従来通り） | ✅ |
 | **接続先プロファイル**（名前/ホスト/ポート/ユーザ/proto/VPN種別/**VPN接続名**/ログ/サイズ。VPN秘密情報は非保持） | ✅ |
 | 永続化：フラット key=value（`/sdcard/term.conf`、env `TERM_CONF`、初回シード） | ✅ |
 | 一覧（選択→接続）／**編集画面 CRUD**（新規`n`/編集`e`/削除`d`＋確認ダイアログ）／インライン文字入力 | ✅ |

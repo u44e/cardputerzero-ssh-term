@@ -28,6 +28,10 @@ Mac側の実装・検証は完了済み。残るは**実機でしか確認でき
 - [ ] **USB-シリアルコンソール** — USB-シリアル変換を挿し proto=serial（Device=`/dev/ttyUSB0`, Baud=9600等）→
       picocom 経由で網機器コンソールに入れる。切断は Close session（picocom ごと終了）。
       → デバイスが `dialout` グループ権限を要求する場合は `sudo usermod -aG dialout pi`。
+      → **Format 7E1** の機器で文字化けしないこと。**Send BREAK**（メニュー）が picocom の
+        escape `C-a C-b` として通り BREAK が出ること（違えば main.c MI_BREAK のバイト列を修正）。
+- [ ] **ssh 鍵/keep-alive** — Key に `-i` 鍵パスを入れて鍵認証で入れる。LAN を切って約90秒で
+      DISCONNECTED になる（ServerAliveInterval=30×3）。
 - [ ] **フォントサイズ** — 編集の Size、Session Menu の Font size で 12/16/20px 実行中切替（桁行が変わる）。
 - [ ] **ログ** — log=1 で接続→`/sdcard/logs/<name>-<ts>.log` 生成、ログ閲覧で ANSI除去表示・↑↓スクロール。
 - [ ] **設定流し込み** — SIDEキー→Send file→ファイル選択→**Detected: Shift_JIS** 表示→Enterで UTF-8変換送出（機器に流れる）。

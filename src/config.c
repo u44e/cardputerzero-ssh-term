@@ -28,6 +28,8 @@ static void set_field(profile_t *p, const char *key, const char *val)
     else if (!strcmp(key, "host"))  snprintf(p->host, sizeof(p->host), "%s", val);
     else if (!strcmp(key, "port"))  snprintf(p->port, sizeof(p->port), "%s", val);
     else if (!strcmp(key, "user"))  snprintf(p->user, sizeof(p->user), "%s", val);
+    else if (!strcmp(key, "key"))   snprintf(p->key, sizeof(p->key), "%s", val);
+    else if (!strcmp(key, "sfmt"))  snprintf(p->sfmt, sizeof(p->sfmt), "%s", val);
     else if (!strcmp(key, "vpn_type")) snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", val);
     else if (!strcmp(key, "vpn"))   snprintf(p->vpn, sizeof(p->vpn), "%s", val);
     /* legacy vpn_server/user/pass/secret keys are intentionally ignored — secrets
@@ -118,6 +120,8 @@ int config_save(void)
         fprintf(f, "p%d.host=%s\n",  i, p->host);
         fprintf(f, "p%d.port=%s\n",  i, p->port);
         fprintf(f, "p%d.user=%s\n",  i, p->user);
+        fprintf(f, "p%d.key=%s\n",   i, p->key);
+        fprintf(f, "p%d.sfmt=%s\n",  i, p->sfmt[0] ? p->sfmt : "8N1");
         fprintf(f, "p%d.vpn_type=%s\n", i, p->vpn_type[0] ? p->vpn_type : "none");
         fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);   /* OS-side connection name; no secrets */
         fprintf(f, "p%d.log=%d\n",   i, p->log);
@@ -194,38 +198,58 @@ void config_macro_delete(int i)
 
 const char *const *config_argv(int i)
 {
-    static char a0[64], a1[8], a2[16], a3[192];
-    static const char *argv[6];
+    static char sh[64], dest[192], port[16], keyp[96];
+    static char db[4], par[4], sb[4];       /* serial: databits / parity / stopbits */
+    static const char *argv[14];
     const profile_t *p = config_get(i);
     if (!p) return NULL;
+    int n = 0;
 
     if (!strcmp(p->proto, "shell")) {
-        const char *sh = getenv("SHELL");
-        snprintf(a0, sizeof(a0), "%s", (sh && *sh) ? sh : "/bin/sh");
-        argv[0] = a0; argv[1] = NULL;
+        const char *s = getenv("SHELL");
+        snprintf(sh, sizeof(sh), "%s", (s && *s) ? s : "/bin/sh");
+        argv[n++] = sh;
+        argv[n] = NULL;
         return argv;
     }
     if (!strcmp(p->proto, "telnet")) {
-        snprintf(a0, sizeof(a0), "telnet");
-        snprintf(a3, sizeof(a3), "%s", p->host);
-        snprintf(a2, sizeof(a2), "%s", p->port[0] ? p->port : "23");
-        argv[0] = a0; argv[1] = a3; argv[2] = a2; argv[3] = NULL;
+        snprintf(dest, sizeof(dest), "%s", p->host);
+        snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "23");
+        argv[n++] = "telnet"; argv[n++] = dest; argv[n++] = port;
+        argv[n] = NULL;
         return argv;
     }
-    if (!strcmp(p->proto, "serial")) {   /* USB-serial console via picocom (host=device, port=baud) */
-        snprintf(a0, sizeof(a0), "picocom");
-        snprintf(a1, sizeof(a1), "-b");
-        snprintf(a2, sizeof(a2), "%s", p->port[0] ? p->port : "115200");
-        snprintf(a3, sizeof(a3), "%s", p->host[0] ? p->host : "/dev/ttyUSB0");
-        argv[0] = a0; argv[1] = a1; argv[2] = a2; argv[3] = a3; argv[4] = NULL;
+    if (!strcmp(p->proto, "serial")) {
+        /* USB-serial console via picocom (host=device, port=baud, sfmt=8N1 etc.) */
+        const char *f = (p->sfmt[0] && p->sfmt[1] && p->sfmt[2]) ? p->sfmt : "8N1";
+        snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "115200");
+        snprintf(dest, sizeof(dest), "%s", p->host[0] ? p->host : "/dev/ttyUSB0");
+        snprintf(db,  sizeof(db),  "%c", f[0]);                      /* 7 | 8 */
+        snprintf(par, sizeof(par), "%c", f[1] == 'E' ? 'e' : f[1] == 'O' ? 'o' : 'n');
+        snprintf(sb,  sizeof(sb),  "%c", f[2]);                      /* 1 | 2 */
+        argv[n++] = "picocom";
+        argv[n++] = "-b"; argv[n++] = port;
+        argv[n++] = "-d"; argv[n++] = db;
+        argv[n++] = "-y"; argv[n++] = par;
+        argv[n++] = "-p"; argv[n++] = sb;
+        argv[n++] = dest;
+        argv[n] = NULL;
         return argv;
     }
-    /* ssh (default) */
-    snprintf(a0, sizeof(a0), "ssh");
-    snprintf(a1, sizeof(a1), "-p");
-    snprintf(a2, sizeof(a2), "%s", p->port[0] ? p->port : "22");
-    if (p->user[0]) snprintf(a3, sizeof(a3), "%s@%s", p->user, p->host);
-    else            snprintf(a3, sizeof(a3), "%s", p->host);
-    argv[0] = a0; argv[1] = a1; argv[2] = a2; argv[3] = a3; argv[4] = NULL;
+    /* ssh (default): keep-alive so flaky field Wi-Fi drops are detected, and an
+     * optional per-profile identity file. */
+    snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "22");
+    if (p->user[0]) snprintf(dest, sizeof(dest), "%s@%s", p->user, p->host);
+    else            snprintf(dest, sizeof(dest), "%s", p->host);
+    argv[n++] = "ssh";
+    argv[n++] = "-p"; argv[n++] = port;
+    argv[n++] = "-o"; argv[n++] = "ServerAliveInterval=30";
+    argv[n++] = "-o"; argv[n++] = "ServerAliveCountMax=3";
+    if (p->key[0]) {
+        snprintf(keyp, sizeof(keyp), "%s", p->key);
+        argv[n++] = "-i"; argv[n++] = keyp;
+    }
+    argv[n++] = dest;
+    argv[n] = NULL;
     return argv;
 }

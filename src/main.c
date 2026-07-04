@@ -323,7 +323,7 @@ static void show_profiles(void)
 /* ---------------- editor (fields vary by VPN type, iPhone-style) ---------------- */
 typedef struct {
     const char *en, *ja;
-    int    kind;    /* 0=text 1=proto 2=vpntype 3=log 4=size */
+    int    kind;    /* 0=text 1=proto 2=vpntype 3=log 4=size 5=serial-format */
     char  *buf;     /* text storage (kind 0) */
     size_t sz;
     int    secret;  /* mask the value (password/secret) */
@@ -340,7 +340,10 @@ static void build_fields(profile_t *p)
     EF("Name","名前",0,p->name,sizeof p->name,0);
     EF(serial ? "Device" : "Host", serial ? "デバイス" : "ホスト",0,p->host,sizeof p->host,0);
     EF(serial ? "Baud"   : "Port", serial ? "ボーレート" : "ポート",0,p->port,sizeof p->port,0);
+    if (serial) EF("Format","形式",5,0,0,0);            /* 8N1 / 7E1 / 7O1 / 8N2 */
     if (!serial) EF("User","ユーザ",0,p->user,sizeof p->user,0);
+    if (!strcmp(p->proto, "ssh"))
+        EF("Key","鍵ファイル",0,p->key,sizeof p->key,0); /* optional identity (-i) */
     EF("Proto","接続種別",1,0,0,0);
     if (!serial) {   /* VPN is meaningless for a local serial console */
         EF("VPN type","VPN方式",2,0,0,0);
@@ -369,6 +372,7 @@ static void field_value(profile_t *p, int f, char *out, size_t n)
     case 2: snprintf(out, n, "< %s >", p->vpn_type[0] ? p->vpn_type : "none"); break;
     case 3: snprintf(out, n, tr("[%s] save session log","[%s] セッションログ保存"), p->log ? "x" : " "); break;
     case 4: snprintf(out, n, "< %spx >", p->size[0] ? p->size : "12"); break;
+    case 5: snprintf(out, n, "< %s >", p->sfmt[0] ? p->sfmt : "8N1"); break;
     default:
         if (e->secret && e->buf && e->buf[0]) snprintf(out, n, "********");
         else snprintf(out, n, "%s", (e->buf && e->buf[0]) ? e->buf : tr("(none)","(なし)"));
@@ -438,6 +442,12 @@ static void editor_toggle(profile_t *p, int dir)
     case 4: {
         int idx = (size_to_idx(p->size) + (dir >= 0 ? 1 : 2)) % 3;
         snprintf(p->size, sizeof(p->size), "%d", SIZES[idx]); break; }
+    case 5: {   /* serial format presets (network-gear console defaults) */
+        static const char *const SFMTS[] = { "8N1", "7E1", "7O1", "8N2" };
+        int m = 4, cur = 0;
+        for (int i = 0; i < m; i++) if (!strcmp(p->sfmt, SFMTS[i])) cur = i;
+        snprintf(p->sfmt, sizeof(p->sfmt), "%s", SFMTS[(cur + (dir >= 0 ? 1 : m - 1)) % m]);
+        break; }
     }
 }
 
@@ -958,15 +968,33 @@ static void term_alt_scroll(uint32_t base)
     scroll_hint(term_scroll_pos() > 0);
 }
 
-#define MENU_N 6
-static const char *menu_label(int i)
+/* menu items are built per open: BREAK appears only for a serial console */
+enum { MI_SEND, MI_FONT, MI_MACROS, MI_LOG, MI_BREAK, MI_CLOSE, MI_BACK };
+static int g_menu_items[8], g_menu_n;
+
+static void build_menu(void)
 {
-    switch (i) {
-    case 0: return tr("Send file...","ファイル流し込み...");
-    case 2: return tr("Macros...","マクロ...");
-    case 3: return tr("Toggle log","ログ ON/OFF");
-    case 4: return tr("Close session","切断");
-    case 5: return tr("Back","戻る");
+    int n = 0;
+    g_menu_items[n++] = MI_SEND;
+    g_menu_items[n++] = MI_FONT;
+    g_menu_items[n++] = MI_MACROS;
+    g_menu_items[n++] = MI_LOG;
+    const profile_t *p = config_get(g_cur_pidx);
+    if (p && !strcmp(p->proto, "serial")) g_menu_items[n++] = MI_BREAK;
+    g_menu_items[n++] = MI_CLOSE;
+    g_menu_items[n++] = MI_BACK;
+    g_menu_n = n;
+}
+
+static const char *menu_label(int id)
+{
+    switch (id) {
+    case MI_SEND:   return tr("Send file...","ファイル流し込み...");
+    case MI_MACROS: return tr("Macros...","マクロ...");
+    case MI_LOG:    return tr("Toggle log","ログ ON/OFF");
+    case MI_BREAK:  return tr("Send BREAK","BREAK送信");
+    case MI_CLOSE:  return tr("Close session","切断");
+    case MI_BACK:   return tr("Back","戻る");
     }
     return "";
 }
@@ -974,20 +1002,24 @@ static const char *menu_label(int i)
 static void open_menu(void)   /* uses current g_menu_sel (caller resets for a fresh open) */
 {
     g_scr = SCR_MENU;
-    g_overlay = overlay_panel(200, 144);
+    build_menu();
+    if (g_menu_sel >= g_menu_n) g_menu_sel = g_menu_n - 1;
+    g_overlay = overlay_panel(200, 36 + g_menu_n * 18);
     lv_obj_t *t = lv_label_create(g_overlay);
     lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(COL_TITLE), 0);
     lv_obj_set_pos(t, 8, 4);
     lv_label_set_text(t, tr("Session","セッション"));
-    for (int i = 0; i < MENU_N; i++) {
+    for (int i = 0; i < g_menu_n; i++) {
         lv_obj_t *l = lv_label_create(g_overlay);
         lv_obj_set_style_text_font(l, ui_font(12), 0);
         lv_obj_set_style_text_color(l, lv_color_hex(i == g_menu_sel ? COL_TEXT : COL_DIM), 0);
         lv_obj_set_pos(l, 12, 24 + i * 18);
         char lbl[48];
-        if (i == 1) snprintf(lbl, sizeof(lbl), tr("Font size  < %dpx >","文字サイズ < %dpx >"), SIZES[g_size_idx]);
-        else        snprintf(lbl, sizeof(lbl), "%s", menu_label(i));
+        if (g_menu_items[i] == MI_FONT)
+            snprintf(lbl, sizeof(lbl), tr("Font size  < %dpx >","文字サイズ < %dpx >"), SIZES[g_size_idx]);
+        else
+            snprintf(lbl, sizeof(lbl), "%s", menu_label(g_menu_items[i]));
         lv_label_set_text(l, lbl);
     }
 }
@@ -1127,26 +1159,32 @@ static void key_menu(uint32_t k)
 {
     switch (k) {
     case LV_KEY_UP:    if (g_menu_sel > 0) { g_menu_sel--; open_menu(); } break;
-    case LV_KEY_DOWN:  if (g_menu_sel < MENU_N - 1) { g_menu_sel++; open_menu(); } break;
+    case LV_KEY_DOWN:  if (g_menu_sel < g_menu_n - 1) { g_menu_sel++; open_menu(); } break;
     case LV_KEY_ESC:   close_overlay(); break;
     case LV_KEY_ENTER:
-        switch (g_menu_sel) {
-        case 0: g_file_sel = 0;                                /* Send file */
+        switch (g_menu_items[g_menu_sel]) {
+        case MI_SEND: g_file_sel = 0;
             snprintf(g_browse_dir, sizeof(g_browse_dir), "%s", filedir());
             open_files(); break;
-        case 1:                                               /* Font size (live) */
+        case MI_FONT:                                         /* Font size (live) */
             load_font_idx((g_size_idx + 1) % 3);
             term_resize(g_mono, g_cols, g_rows, g_cw, g_ch);
             open_menu();                                      /* refresh label */
             break;
-        case 2: g_mac_sel = 0; open_macros(); break;          /* Macros (overlay; term stays behind) */
-        case 3:                                               /* Toggle log */
+        case MI_MACROS: g_mac_sel = 0; open_macros(); break;  /* overlay; term stays behind */
+        case MI_LOG:
             if (logsink_is_open()) logsink_close();
             else logsink_open(config_get(g_cur_pidx) ? config_get(g_cur_pidx)->name : "session");
             close_overlay();
             break;
-        case 4: close_overlay(); end_session(); break;
-        case 5: close_overlay(); break;
+        case MI_BREAK:
+            /* picocom escape: C-a C-b = send BREAK (router password recovery).
+             * Device checklist: verify the sequence against the installed picocom. */
+            term_send_bytes("\x01\x02", 2);
+            close_overlay();
+            break;
+        case MI_CLOSE: close_overlay(); end_session(); break;
+        case MI_BACK:  close_overlay(); break;
         }
         break;
     }

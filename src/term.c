@@ -86,7 +86,8 @@ static uint32_t cell_rgb(VTermScreenCell *cell)
     return ((uint32_t)c.rgb.red << 16) | ((uint32_t)c.rgb.green << 8) | c.rgb.blue;
 }
 
-/* fg/bg (as RGB) + underline for a live cell, applying reverse-video (swap fg/bg). */
+/* fg/bg (as RGB) + underline for a live cell: bold brightens the foreground
+ * ("bold as bright", no bold face needed), then reverse-video swaps fg/bg. */
 static void cell_colors(VTermScreenCell *cell, uint32_t *fg, uint32_t *bg, int *ul)
 {
     VTermColor f = cell->fg, b = cell->bg;
@@ -94,6 +95,11 @@ static void cell_colors(VTermScreenCell *cell, uint32_t *fg, uint32_t *bg, int *
     vterm_screen_convert_color_to_rgb(g.vts, &b);
     uint32_t frgb = ((uint32_t)f.rgb.red << 16) | ((uint32_t)f.rgb.green << 8) | f.rgb.blue;
     uint32_t brgb = ((uint32_t)b.rgb.red << 16) | ((uint32_t)b.rgb.green << 8) | b.rgb.blue;
+    if (cell->attrs.bold) {
+        uint32_t r = (frgb >> 16) & 0xFF, gg = (frgb >> 8) & 0xFF, bl = frgb & 0xFF;
+        r += (255 - r) / 3; gg += (255 - gg) / 3; bl += (255 - bl) / 3;
+        frgb = (r << 16) | (gg << 8) | bl;
+    }
     if (cell->attrs.reverse) { uint32_t t = frgb; frgb = brgb; brgb = t; }
     *fg = frgb; *bg = brgb; *ul = cell->attrs.underline ? 1 : 0;
 }

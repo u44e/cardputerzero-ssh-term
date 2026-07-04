@@ -18,7 +18,8 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | Feature | Status |
 |---|---|
 | Local shell / SSH / telnet via PTY (libvterm) | ✅ working |
-| **USB-serial console** (proto=serial → `picocom -b <baud> <device>`; Host/Port fields become Device/Baud) | ✅ argv / ⏳ device |
+| **USB-serial console** (proto=serial → picocom; Device/Baud + **format presets 8N1/7E1/7O1/8N2**, **Send BREAK** menu item) | ✅ argv / ⏳ device |
+| **ssh hardening**: keep-alive always on (ServerAliveInterval=30), per-profile **identity file** (`Key` → `-i`) | ✅ working |
 | **Quick-send macros**: save one-line commands, send from Session Menu (+Enter); in-app add/edit/delete | ✅ working |
 | Connection profiles (list / **editor** CRUD / persistence) | ✅ working |
 | Terminal render: Liberation Mono 45×12 (freetype; CJK + unscii_8 fallback) | ✅ working |
@@ -34,7 +35,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 | VPN bring-up: **OS-managed** — profile stores only a connection NAME (no secrets in `term.conf`); `pkexec nmcli connection up <name>` (NetworkManager), else per-tool fallback | ⏳ exec is device-only |
 | VPN readiness probe (getifaddrs) + teardown | ✅ probe / ⏳ exec is device-only |
 | Connecting overlay (VPN→probe→ssh staged) | ⏳ not yet (cosmetic) |
-| **SGR in terminal**: fg + **bg colors, reverse-video, underline** (per color-run labels; default green-on-black) | ✅ working (ls --color / htop / vim) |
+| **SGR in terminal**: fg + **bg colors, reverse-video, underline, bold-as-bright** (per color-run labels; default green-on-black) | ✅ working (ls --color / htop / vim) |
 | Ctrl combos (full set needs key_item / `LV_EVENT_KEYBOARD`) | ◐ partial on emu, full on device |
 
 ## Documentation
