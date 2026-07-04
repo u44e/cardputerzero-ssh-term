@@ -148,14 +148,19 @@ static const lv_font_t *ui_font(int px)
 }
 
 /* ---------------- helpers ---------------- */
-static lv_obj_t *mklabel(const lv_font_t *f, uint32_t color, int x, int y, const char *txt)
+static lv_obj_t *mklabel_on(lv_obj_t *parent, const lv_font_t *f, uint32_t color, int x, int y, const char *txt)
 {
-    lv_obj_t *l = lv_label_create(g_root);
+    lv_obj_t *l = lv_label_create(parent);
     lv_obj_set_style_text_font(l, f, 0);
     lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
     lv_obj_set_pos(l, x, y);
     lv_label_set_text(l, txt);
     return l;
+}
+
+static lv_obj_t *mklabel(const lv_font_t *f, uint32_t color, int x, int y, const char *txt)
+{
+    return mklabel_on(g_root, f, color, x, y, txt);
 }
 
 static lv_obj_t *mkrect(uint32_t color, int x, int y, int w, int h)
@@ -756,12 +761,7 @@ static int g_mac_sel = 0, g_mac_edit = -1, g_mac_field = 0, g_mac_editing = 0;
 
 static lv_obj_t *ovlabel(const lv_font_t *f, uint32_t color, int x, int y, const char *txt)
 {
-    lv_obj_t *l = lv_label_create(g_overlay);
-    lv_obj_set_style_text_font(l, f, 0);
-    lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
-    lv_obj_set_pos(l, x, y);
-    lv_label_set_text(l, txt);
-    return l;
+    return mklabel_on(g_overlay, f, color, x, y, txt);   /* same, parented to the overlay panel */
 }
 
 static void open_macros(void)

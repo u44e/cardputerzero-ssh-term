@@ -30,10 +30,3 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(VTERM REQUIRED vterm)
 target_include_directories(ssh_term PRIVATE ${VTERM_INCLUDE_DIRS})
 target_link_libraries(ssh_term PRIVATE ${VTERM_LIBRARIES} pthread)
-
-# Phase 1+ will add: vterm (pkg-config), pthread, src/{pty_session,vterm_render,
-# keymap,config,screens,vpn,logsink,ime}.c — link after the macro:
-#   find_package(PkgConfig REQUIRED)
-#   pkg_check_modules(VTERM REQUIRED vterm)
-#   target_include_directories(ssh_term PRIVATE ${VTERM_INCLUDE_DIRS})
-#   target_link_libraries(ssh_term PRIVATE ${VTERM_LIBRARIES} pthread)

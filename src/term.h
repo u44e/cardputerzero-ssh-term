@@ -1,5 +1,5 @@
-/* term.h — libvterm-backed terminal view on an LVGL parent.
- * Phase 1: local PTY (shell), per-row labels, monochrome, reader thread. */
+/* term.h — libvterm-backed terminal view on an LVGL parent: PTY child + reader
+ * thread, per color-run labels (fg/bg/reverse/underline/bold), scrollback. */
 #ifndef SSH_TERM_TERM_H
 #define SSH_TERM_TERM_H
 
