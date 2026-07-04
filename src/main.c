@@ -326,8 +326,8 @@ static void show_profiles(void)
     }
 
     lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0,
-                              tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter e:edit n:new c:copy d:del l:logs g:JP",
-                                 "↑↓ Enter:接続 e:編集 n:新規 c:複製 d:削除 l:ログ g:EN"));
+                              tr(LV_SYMBOL_UP LV_SYMBOL_DOWN " Enter e n c d  [ ]:move  l:logs g:JP",
+                                 "↑↓ Enter e:編集 n:新規 c:複製 d:削除 []:並替 l:ログ g:EN"));
     lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -4);
     attach_capture();
 }
@@ -528,6 +528,9 @@ static void key_profiles(uint32_t k)
         else if (k == 'd' && n > 0) {
             char m[80]; snprintf(m, sizeof(m), tr("Delete \"%s\" ?","\"%s\" を削除?"), config_get(g_sel)->name);
             open_dialog(SCR_PROFILES, COL_RED, tr("Confirm","確認"), m, tr("Delete","削除"), do_delete_cb);
+        }
+        else if ((k == '[' || k == ']') && n > 1) {   /* reorder the selected profile */
+            g_sel = config_move(g_sel, k == '[' ? -1 : +1); config_save(); show_profiles();
         }
         else if (k == 'l') { g_log_sel = 0; show_logs(); }
         else if (k == 'g') { g_lang = !g_lang; config_set_lang(g_lang); config_save(); show_profiles(); }

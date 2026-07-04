@@ -172,6 +172,14 @@ int config_dup(int i)   /* clone profile i (name +" copy") -> new index, or -1 *
     return s_count++;
 }
 
+int config_move(int i, int dir)   /* swap profile i with its neighbour; -> new index */
+{
+    int j = i + (dir < 0 ? -1 : 1);
+    if (i < 0 || i >= s_count || j < 0 || j >= s_count) return i;
+    profile_t t = s_prof[i]; s_prof[i] = s_prof[j]; s_prof[j] = t;
+    return j;
+}
+
 void config_delete(int i)
 {
     if (i < 0 || i >= s_count) return;

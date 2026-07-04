@@ -64,7 +64,7 @@ Pi runtime deps (one-time): `libvterm0` (added to deploy-run.sh), plus
 
 ## Keys
 
-**Sessions list:** `↑/↓` select · `Enter` connect · `e` edit · `n` new · `c` copy · `d` delete · `l` logs · `g` EN/JA UI
+**Sessions list:** `↑/↓` select · `Enter` connect · `e` edit · `n` new · `c` copy · `[`/`]` move · `d` delete · `l` logs · `g` EN/JA UI
 **Log viewer:** `↑/↓` scroll · `/` find · `n` next match · `d` delete · `ESC` back
 **Editor:** `↑/↓` field · `Enter` edit (text) · `←/→` toggle (proto/VPN/log) · `s` save · `ESC` back
 **Terminal:** all keys → PTY (incl. **F1–F12 / PgUp / PgDn / Insert** as xterm CSI, **Alt+letter** as Meta/ESC-prefix) · **SIDE key** opens the session menu (`Fn+Q` on the emulator) · **Alt+↑↓/←→** scroll back through history
