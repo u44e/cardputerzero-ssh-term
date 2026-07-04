@@ -7,6 +7,8 @@
 
 static profile_t s_prof[CFG_MAX_PROFILES];
 static int       s_count = 0;
+static macro_t   s_macros[CFG_MAX_MACROS];
+static int       s_macro_count = 0;
 static int       s_loaded = 0;
 static int       s_lang = 0;    /* 0 = en, 1 = ja */
 
@@ -28,10 +30,8 @@ static void set_field(profile_t *p, const char *key, const char *val)
     else if (!strcmp(key, "user"))  snprintf(p->user, sizeof(p->user), "%s", val);
     else if (!strcmp(key, "vpn_type")) snprintf(p->vpn_type, sizeof(p->vpn_type), "%s", val);
     else if (!strcmp(key, "vpn"))   snprintf(p->vpn, sizeof(p->vpn), "%s", val);
-    else if (!strcmp(key, "vpn_server")) snprintf(p->vpn_server, sizeof(p->vpn_server), "%s", val);
-    else if (!strcmp(key, "vpn_user"))   snprintf(p->vpn_user, sizeof(p->vpn_user), "%s", val);
-    else if (!strcmp(key, "vpn_pass"))   snprintf(p->vpn_pass, sizeof(p->vpn_pass), "%s", val);
-    else if (!strcmp(key, "vpn_secret")) snprintf(p->vpn_secret, sizeof(p->vpn_secret), "%s", val);
+    /* legacy vpn_server/user/pass/secret keys are intentionally ignored — secrets
+     * are OS-managed now, and dropping them here purges them on the next save. */
     else if (!strcmp(key, "log"))   p->log = atoi(val);
     else if (!strcmp(key, "size"))  snprintf(p->size, sizeof(p->size), "%s", val);
 }
@@ -72,6 +72,7 @@ void config_load(void)
     if (!f) { seed_defaults(); config_save(); return; }
 
     s_count = 0;
+    s_macro_count = 0;
     char line[256];
     while (fgets(line, sizeof(line), f)) {
         char *eq = strchr(line, '=');
@@ -80,8 +81,18 @@ void config_load(void)
         char *key = line, *val = eq + 1;
         val[strcspn(val, "\r\n")] = 0;
 
-        if (!strcmp(key, "profiles")) continue;     /* count is implicit */
+        if (!strcmp(key, "profiles") || !strcmp(key, "macros")) continue;  /* counts implicit */
         if (!strcmp(key, "lang")) { s_lang = !strcmp(val, "ja"); continue; }
+        if (!strncmp(key, "mac", 3) && key[3] >= '0' && key[3] <= '9') {   /* "mac2.name" */
+            int mi = atoi(key + 3);
+            char *d = strchr(key, '.');
+            if (d && mi >= 0 && mi < CFG_MAX_MACROS) {
+                if (mi + 1 > s_macro_count) s_macro_count = mi + 1;
+                if      (!strcmp(d + 1, "name")) snprintf(s_macros[mi].name, sizeof(s_macros[mi].name), "%s", val);
+                else if (!strcmp(d + 1, "text")) snprintf(s_macros[mi].text, sizeof(s_macros[mi].text), "%s", val);
+            }
+            continue;
+        }
         /* keys look like "p3.host" */
         if (key[0] != 'p') continue;
         int idx = atoi(key + 1);
@@ -108,13 +119,14 @@ int config_save(void)
         fprintf(f, "p%d.port=%s\n",  i, p->port);
         fprintf(f, "p%d.user=%s\n",  i, p->user);
         fprintf(f, "p%d.vpn_type=%s\n", i, p->vpn_type[0] ? p->vpn_type : "none");
-        fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);
-        fprintf(f, "p%d.vpn_server=%s\n", i, p->vpn_server);
-        fprintf(f, "p%d.vpn_user=%s\n",   i, p->vpn_user);
-        fprintf(f, "p%d.vpn_pass=%s\n",   i, p->vpn_pass);
-        fprintf(f, "p%d.vpn_secret=%s\n", i, p->vpn_secret);
+        fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);   /* OS-side connection name; no secrets */
         fprintf(f, "p%d.log=%d\n",   i, p->log);
         fprintf(f, "p%d.size=%s\n",  i, p->size[0] ? p->size : "12");
+    }
+    fprintf(f, "macros=%d\n", s_macro_count);
+    for (int i = 0; i < s_macro_count; i++) {
+        fprintf(f, "mac%d.name=%s\n", i, s_macros[i].name);
+        fprintf(f, "mac%d.text=%s\n", i, s_macros[i].text);
     }
     fclose(f);
     return 0;
@@ -152,6 +164,34 @@ void config_delete(int i)
     s_count--;
 }
 
+int config_macro_count(void) { return s_macro_count; }
+
+const macro_t *config_macro(int i)
+{
+    return (i >= 0 && i < s_macro_count) ? &s_macros[i] : NULL;
+}
+
+macro_t *config_macro_mutable(int i)
+{
+    return (i >= 0 && i < s_macro_count) ? &s_macros[i] : NULL;
+}
+
+int config_macro_add(void)
+{
+    if (s_macro_count >= CFG_MAX_MACROS) return -1;
+    macro_t *m = &s_macros[s_macro_count];
+    memset(m, 0, sizeof(*m));
+    snprintf(m->name, sizeof(m->name), "macro");
+    return s_macro_count++;
+}
+
+void config_macro_delete(int i)
+{
+    if (i < 0 || i >= s_macro_count) return;
+    for (int j = i; j + 1 < s_macro_count; j++) s_macros[j] = s_macros[j + 1];
+    s_macro_count--;
+}
+
 const char *const *config_argv(int i)
 {
     static char a0[64], a1[8], a2[16], a3[192];
@@ -170,6 +210,14 @@ const char *const *config_argv(int i)
         snprintf(a3, sizeof(a3), "%s", p->host);
         snprintf(a2, sizeof(a2), "%s", p->port[0] ? p->port : "23");
         argv[0] = a0; argv[1] = a3; argv[2] = a2; argv[3] = NULL;
+        return argv;
+    }
+    if (!strcmp(p->proto, "serial")) {   /* USB-serial console via picocom (host=device, port=baud) */
+        snprintf(a0, sizeof(a0), "picocom");
+        snprintf(a1, sizeof(a1), "-b");
+        snprintf(a2, sizeof(a2), "%s", p->port[0] ? p->port : "115200");
+        snprintf(a3, sizeof(a3), "%s", p->host[0] ? p->host : "/dev/ttyUSB0");
+        argv[0] = a0; argv[1] = a1; argv[2] = a2; argv[3] = a3; argv[4] = NULL;
         return argv;
     }
     /* ssh (default) */

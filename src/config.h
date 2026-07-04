@@ -4,6 +4,7 @@
 #define SSH_TERM_CONFIG_H
 
 #define CFG_MAX_PROFILES 16
+#define CFG_MAX_MACROS   12
 
 typedef struct {
     char name[32];
@@ -12,14 +13,17 @@ typedef struct {
     char port[8];
     char user[64];
     char vpn_type[12]; /* none|wireguard|openvpn|ikev2|l2tp|tailscale */
-    char vpn[96];    /* config name/path (wg/ovpn) or remote ID (ikev2) */
-    char vpn_server[80];  /* server host (ikev2/l2tp) */
-    char vpn_user[48];    /* username / account (openvpn/ikev2/l2tp) */
-    char vpn_pass[64];    /* password */
-    char vpn_secret[96];  /* PSK / shared secret (l2tp) or auth key (tailscale) */
+    char vpn[96];    /* OS-side connection/config NAME to bring up. Secrets live in
+                      * the OS (NetworkManager / /etc/wireguard …), never stored here. */
     int  log;        /* 1 = save session log */
     char size[4];    /* terminal font px: "12" | "16" | "20" */
 } profile_t;
+
+/* Quick-send macro: a named one-line command sent to the live terminal (+Enter). */
+typedef struct {
+    char name[24];
+    char text[128];
+} macro_t;
 
 void              config_load(void);          /* load (or seed defaults) */
 int               config_save(void);          /* 0 ok, -1 fail */
@@ -30,6 +34,12 @@ const profile_t  *config_get(int i);          /* NULL if out of range */
 profile_t        *config_mutable(int i);      /* for the editor */
 int               config_add(void);           /* new blank profile -> index, or -1 */
 void              config_delete(int i);
+
+int               config_macro_count(void);
+const macro_t    *config_macro(int i);         /* NULL if out of range */
+macro_t          *config_macro_mutable(int i); /* for the macro editor */
+int               config_macro_add(void);      /* new blank macro -> index, or -1 */
+void              config_macro_delete(int i);
 
 /* Build an argv for connecting profile i. Fills argv[] (NULL-terminated) using
  * the static storage in *buf. Returns argv (do not free); NULL on bad proto. */

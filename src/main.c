@@ -37,7 +37,8 @@
 #define COL_RED    0xFF6B6B
 
 enum { SCR_PROFILES, SCR_EDITOR, SCR_TERM, SCR_LOGS, SCR_LOGVIEW, SCR_MENU, SCR_FILES,
-       SCR_SEND, SCR_DIALOG };
+       SCR_SEND, SCR_DIALOG, SCR_TERM_DISC,     /* _DISC = session ended, output frozen for review */
+       SCR_MACROS, SCR_MACRO_EDIT };            /* quick-send macro picker + editor (overlays) */
 
 static lv_obj_t   *g_root;
 static int         g_scr = SCR_PROFILES;
@@ -330,30 +331,18 @@ static void build_fields(profile_t *p)
     int n = 0;
 #define EF(EN,JA,K,B,S,SEC) do{ g_ef[n].en=(EN); g_ef[n].ja=(JA); g_ef[n].kind=(K); \
         g_ef[n].buf=(B); g_ef[n].sz=(S); g_ef[n].secret=(SEC); n++; }while(0)
+    int serial = !strcmp(p->proto, "serial");   /* USB-serial: host=device, port=baud */
     EF("Name","名前",0,p->name,sizeof p->name,0);
-    EF("Host","ホスト",0,p->host,sizeof p->host,0);
-    EF("Port","ポート",0,p->port,sizeof p->port,0);
-    EF("User","ユーザ",0,p->user,sizeof p->user,0);
+    EF(serial ? "Device" : "Host", serial ? "デバイス" : "ホスト",0,p->host,sizeof p->host,0);
+    EF(serial ? "Baud"   : "Port", serial ? "ボーレート" : "ポート",0,p->port,sizeof p->port,0);
+    if (!serial) EF("User","ユーザ",0,p->user,sizeof p->user,0);
     EF("Proto","接続種別",1,0,0,0);
-    EF("VPN type","VPN方式",2,0,0,0);
-    if (!strcmp(p->vpn_type, "wireguard")) {
-        EF("Config","設定",0,p->vpn,sizeof p->vpn,0);
-    } else if (!strcmp(p->vpn_type, "openvpn")) {
-        EF("Config","設定ファイル",0,p->vpn,sizeof p->vpn,0);
-        EF("User","ユーザ",0,p->vpn_user,sizeof p->vpn_user,0);
-        EF("Pass","パスワード",0,p->vpn_pass,sizeof p->vpn_pass,1);
-    } else if (!strcmp(p->vpn_type, "ikev2")) {
-        EF("Server","サーバ",0,p->vpn_server,sizeof p->vpn_server,0);
-        EF("Remote ID","リモートID",0,p->vpn,sizeof p->vpn,0);
-        EF("User","ユーザ",0,p->vpn_user,sizeof p->vpn_user,0);
-        EF("Pass","パスワード",0,p->vpn_pass,sizeof p->vpn_pass,1);
-    } else if (!strcmp(p->vpn_type, "l2tp")) {
-        EF("Server","サーバ",0,p->vpn_server,sizeof p->vpn_server,0);
-        EF("Account","アカウント",0,p->vpn_user,sizeof p->vpn_user,0);
-        EF("Pass","パスワード",0,p->vpn_pass,sizeof p->vpn_pass,1);
-        EF("Secret","シークレット",0,p->vpn_secret,sizeof p->vpn_secret,1);
-    } else if (!strcmp(p->vpn_type, "tailscale")) {
-        EF("Auth key","認証キー",0,p->vpn_secret,sizeof p->vpn_secret,1);
+    if (!serial) {   /* VPN is meaningless for a local serial console */
+        EF("VPN type","VPN方式",2,0,0,0);
+        /* OS holds the VPN config + secrets; the profile only names the connection to
+         * bring up (nmcli / wg-quick / ipsec by name). Tailscale needs no name. */
+        if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && strcmp(p->vpn_type, "tailscale"))
+            EF("Connection","接続名",0,p->vpn,sizeof p->vpn,0);
     }
     EF("Log","ログ",3,0,0,0);
     EF("Size","文字サイズ",4,0,0,0);
@@ -431,9 +420,9 @@ static void editor_toggle(profile_t *p, int dir)
 {
     switch (g_ef[g_field].kind) {
     case 1: {
-        const char *seq[] = { "ssh", "telnet", "shell" }; int cur = 0;
-        for (int i = 0; i < 3; i++) if (!strcmp(p->proto, seq[i])) cur = i;
-        snprintf(p->proto, sizeof(p->proto), "%s", seq[(cur + (dir >= 0 ? 1 : 2)) % 3]);
+        const char *seq[] = { "ssh", "telnet", "shell", "serial" }; int m = 4, cur = 0;
+        for (int i = 0; i < m; i++) if (!strcmp(p->proto, seq[i])) cur = i;
+        snprintf(p->proto, sizeof(p->proto), "%s", seq[(cur + (dir >= 0 ? 1 : m - 1)) % m]);
         break; }
     case 2: {
         int n = vpn_type_count(), cur = 0;
@@ -554,6 +543,35 @@ static void connect_profile(int i)
         return;
     }
     do_connect_now();
+}
+
+/* ---- disconnected review + reconnect (session ended / connect failed) ---- */
+static void end_session(void)   /* tear everything down and return to the list */
+{
+    term_destroy();
+    logsink_close();
+    vpn_down();
+    show_profiles();
+}
+
+static void reconnect_session(void)   /* re-run the same profile; VPN stays up */
+{
+    term_destroy();
+    logsink_close();      /* do_connect_now reopens the log if the profile has log=1 */
+    do_connect_now();
+}
+
+/* Session died: keep the final output on screen (don't destroy the terminal) and
+ * recolor the status bar so the user can read the last lines / reconnect. */
+static void enter_disconnected(void)
+{
+    logsink_close();      /* finalize the log; the rendered buffer stays visible */
+    if (g_status) {
+        lv_obj_set_style_text_color(g_status, lv_color_hex(COL_RED), 0);
+        lv_label_set_text(g_status, tr("DISCONNECTED   Enter:close  r:reconnect",
+                                       "切断   Enter:閉じる  r:再接続"));
+    }
+    g_scr = SCR_TERM_DISC;
 }
 
 /* ---------------- logs browser ---------------- */
@@ -686,6 +704,114 @@ static lv_obj_t *overlay_panel(int w, int h)
     return o;
 }
 
+/* ---------------- quick-send macros (overlay on the live terminal) ----------------
+ * Session Menu -> "Macros...": pick a saved one-line command and send it (+Enter).
+ * n:new  e:edit  d:delete  — stored globally in term.conf (mac<i>.name/.text). */
+static int g_mac_sel = 0, g_mac_edit = -1, g_mac_field = 0, g_mac_editing = 0;
+
+static lv_obj_t *ovlabel(const lv_font_t *f, uint32_t color, int x, int y, const char *txt)
+{
+    lv_obj_t *l = lv_label_create(g_overlay);
+    lv_obj_set_style_text_font(l, f, 0);
+    lv_obj_set_style_text_color(l, lv_color_hex(color), 0);
+    lv_obj_set_pos(l, x, y);
+    lv_label_set_text(l, txt);
+    return l;
+}
+
+static void open_macros(void)
+{
+    g_scr = SCR_MACROS;
+    g_overlay = overlay_panel(280, 150);
+    ovlabel(ui_font(14), COL_TITLE, 8, 4, tr("Macros","マクロ"));
+    int n = config_macro_count();
+    if (n == 0)
+        ovlabel(ui_font(12), COL_DIM, 12, 30, tr("(empty — n:new)","(未登録 — n:新規)"));
+    for (int i = 0; i < n; i++) {
+        const macro_t *m = config_macro(i);
+        char row[64];
+        snprintf(row, sizeof(row), "%-10.10s %.20s", m->name, m->text);
+        ovlabel(ui_font(12), i == g_mac_sel ? COL_TEXT : COL_DIM, 12, 24 + i * 15, row);
+    }
+    ovlabel(ui_font(12), COL_DIM, 8, 132,
+            tr("Enter:send n:new e:edit d:del ESC","Enter:送信 n:新規 e:編集 d:削除 ESC"));
+}
+
+static void open_macro_edit(int idx)
+{
+    g_mac_edit = idx;
+    g_scr = SCR_MACRO_EDIT;
+    g_overlay = overlay_panel(280, 110);
+    macro_t *m = config_macro_mutable(idx);
+    if (!m) { open_macros(); return; }
+    ovlabel(ui_font(14), COL_TITLE, 8, 4, tr("Edit macro","マクロ編集"));
+    const char *lab[2] = { tr("Name","名前"), tr("Text","コマンド") };
+    const char *val[2] = { m->name, m->text };
+    for (int i = 0; i < 2; i++) {
+        ovlabel(ui_font(12), i == g_mac_field ? COL_TEXT : COL_DIM, 12, 28 + i * 18, lab[i]);
+        char v[140];
+        if (g_mac_editing && i == g_mac_field) snprintf(v, sizeof(v), "%s_", g_ebuf);
+        else                                   snprintf(v, sizeof(v), "%s", val[i]);
+        ovlabel(ui_font(12), i == g_mac_field ? COL_CYAN : COL_DIM, 76, 28 + i * 18, v);
+    }
+    ovlabel(ui_font(12), COL_DIM, 8, 90,
+            tr("Enter:edit  s:save  ESC:back","Enter:編集  s:保存  ESC:戻る"));
+}
+
+static void macro_send(int idx)
+{
+    const macro_t *m = config_macro(idx);
+    if (!m || !m->text[0]) return;
+    term_send_bytes(m->text, (int)strlen(m->text));
+    term_send_bytes("\r", 1);                       /* run it */
+}
+
+static void key_macros(uint32_t k)
+{
+    int n = config_macro_count();
+    switch (k) {
+    case LV_KEY_UP:    if (g_mac_sel > 0) { g_mac_sel--; open_macros(); } break;
+    case LV_KEY_DOWN:  if (g_mac_sel < n - 1) { g_mac_sel++; open_macros(); } break;
+    case LV_KEY_ESC:   close_overlay(); break;
+    case LV_KEY_ENTER: if (n > 0) { close_overlay(); macro_send(g_mac_sel); } break;
+    default:
+        if (k == 'n') { int i = config_macro_add(); if (i >= 0) { g_mac_sel = i; g_mac_field = 0; g_mac_editing = 0; open_macro_edit(i); } }
+        else if (k == 'e' && n > 0) { g_mac_field = 0; g_mac_editing = 0; open_macro_edit(g_mac_sel); }
+        else if (k == 'd' && n > 0) {
+            config_macro_delete(g_mac_sel); config_save();
+            if (g_mac_sel >= config_macro_count()) g_mac_sel = config_macro_count() - 1;
+            if (g_mac_sel < 0) g_mac_sel = 0;
+            open_macros();
+        }
+        break;
+    }
+}
+
+static void key_macro_edit(uint32_t k)
+{
+    macro_t *m = config_macro_mutable(g_mac_edit);
+    if (!m) { open_macros(); return; }
+    char  *buf = g_mac_field == 0 ? m->name : m->text;
+    size_t sz  = g_mac_field == 0 ? sizeof(m->name) : sizeof(m->text);
+
+    if (g_mac_editing) {   /* inline text entry, same pattern as the profile editor */
+        if (k == LV_KEY_ENTER)      { snprintf(buf, sz, "%s", g_ebuf); g_mac_editing = 0; open_macro_edit(g_mac_edit); }
+        else if (k == LV_KEY_ESC)   { g_mac_editing = 0; open_macro_edit(g_mac_edit); }
+        else if (k == LV_KEY_BACKSPACE) { size_t l = strlen(g_ebuf); if (l) g_ebuf[l-1] = 0; open_macro_edit(g_mac_edit); }
+        else if (k >= 0x20 && k < 0x7f) { size_t l = strlen(g_ebuf); if (l < sizeof(g_ebuf)-1) { g_ebuf[l]=(char)k; g_ebuf[l+1]=0; } open_macro_edit(g_mac_edit); }
+        return;
+    }
+    switch (k) {
+    case LV_KEY_UP:    if (g_mac_field > 0) g_mac_field--; open_macro_edit(g_mac_edit); break;
+    case LV_KEY_DOWN:  if (g_mac_field < 1) g_mac_field++; open_macro_edit(g_mac_edit); break;
+    case LV_KEY_ENTER: snprintf(g_ebuf, sizeof(g_ebuf), "%s", buf); g_mac_editing = 1; open_macro_edit(g_mac_edit); break;
+    case LV_KEY_ESC:   open_macros(); break;
+    default:
+        if (k == 's') { config_save(); open_macros(); }
+        break;
+    }
+}
+
 /* ---------------- terminal scrollback view ---------------- */
 static void scroll_hint(int on)   /* bottom indicator while viewing history */
 {
@@ -711,14 +837,15 @@ static void term_alt_scroll(uint32_t base)
     scroll_hint(term_scroll_pos() > 0);
 }
 
-#define MENU_N 5
+#define MENU_N 6
 static const char *menu_label(int i)
 {
     switch (i) {
     case 0: return tr("Send file...","ファイル流し込み...");
-    case 2: return tr("Toggle log","ログ ON/OFF");
-    case 3: return tr("Close session","切断");
-    case 4: return tr("Back","戻る");
+    case 2: return tr("Macros...","マクロ...");
+    case 3: return tr("Toggle log","ログ ON/OFF");
+    case 4: return tr("Close session","切断");
+    case 5: return tr("Back","戻る");
     }
     return "";
 }
@@ -726,7 +853,7 @@ static const char *menu_label(int i)
 static void open_menu(void)   /* uses current g_menu_sel (caller resets for a fresh open) */
 {
     g_scr = SCR_MENU;
-    g_overlay = overlay_panel(200, 124);
+    g_overlay = overlay_panel(200, 144);
     lv_obj_t *t = lv_label_create(g_overlay);
     lv_obj_set_style_text_font(t, ui_font(14), 0);
     lv_obj_set_style_text_color(t, lv_color_hex(COL_TITLE), 0);
@@ -891,13 +1018,14 @@ static void key_menu(uint32_t k)
             term_resize(g_mono, g_cols, g_rows, g_cw, g_ch);
             open_menu();                                      /* refresh label */
             break;
-        case 2:                                               /* Toggle log */
+        case 2: g_mac_sel = 0; open_macros(); break;          /* Macros (overlay; term stays behind) */
+        case 3:                                               /* Toggle log */
             if (logsink_is_open()) logsink_close();
             else logsink_open(config_get(g_cur_pidx) ? config_get(g_cur_pidx)->name : "session");
             close_overlay();
             break;
-        case 3: close_overlay(); term_destroy(); logsink_close(); vpn_down(); show_profiles(); break;
-        case 4: close_overlay(); break;
+        case 4: close_overlay(); end_session(); break;
+        case 5: close_overlay(); break;
         }
         break;
     }
@@ -973,6 +1101,11 @@ void key_cb(lv_event_t *e)
         if (term_scroll_pos() > 0) { term_scroll_reset(); scroll_hint(0); }  /* a keystroke -> live */
         term_feed_key(k);
         break;
+    case SCR_TERM_DISC:                                            /* session ended: review output */
+        if (k & 0x20000000u) { term_alt_scroll(k & 0xFF); break; } /* Alt+arrow -> scroll history */
+        if (k == 'r' || k == 'R')                       reconnect_session();
+        else if (k == LV_KEY_ENTER || k == LV_KEY_ESC)  end_session();
+        break;
     case SCR_PROFILES: key_profiles(k); break;
     case SCR_EDITOR:   key_editor(k); break;
     case SCR_LOGS:     key_logs(k); break;
@@ -982,6 +1115,8 @@ void key_cb(lv_event_t *e)
         else if (k == LV_KEY_UP && g_logview_ta)   lv_obj_scroll_by(g_logview_ta, 0,  28, LV_ANIM_OFF);
         break;
     case SCR_MENU:     key_menu(k); break;
+    case SCR_MACROS:   key_macros(k); break;
+    case SCR_MACRO_EDIT: key_macro_edit(k); break;
     case SCR_FILES:    key_files(k); break;
     case SCR_SEND:     key_send(k); break;
     case SCR_DIALOG:   key_dialog(k); break;
@@ -991,12 +1126,8 @@ void key_cb(lv_event_t *e)
 static void watch_cb(lv_timer_t *t)
 {
     (void)t;
-    if (g_scr == SCR_TERM && !term_is_alive()) {
-        term_destroy();
-        logsink_close();
-        vpn_down();
-        show_profiles();
-    }
+    if (g_scr == SCR_TERM && !term_is_alive())
+        enter_disconnected();   /* freeze output for review instead of bouncing to the list */
 }
 
 void app_main(lv_obj_t *parent)
@@ -1020,6 +1151,9 @@ void app_main(lv_obj_t *parent)
     const char *alv = getenv("AUTO_LOGVIEW"); if (alv) { logsink_list_count(); show_logview(atoi(alv)); }
     const char *as = getenv("AUTO_SENDFILE"); if (as) sendfile_start(as);
     const char *am = getenv("AUTO_MENU");     if (am) { g_menu_sel = 0; open_menu(); }
+    const char *amc = getenv("AUTO_MACROS");  if (amc) { g_mac_sel = 0; open_macros(); }
+    const char *ams = getenv("AUTO_MACRO_SEND"); if (ams) macro_send(atoi(ams));
+    const char *ame = getenv("AUTO_MACRO_EDIT"); if (ame) open_macro_edit(atoi(ame));
     const char *af = getenv("AUTO_FILES");    if (af) { g_file_sel = 0;
         snprintf(g_browse_dir, sizeof(g_browse_dir), "%s", filedir()); open_files(); }
     const char *ad = getenv("AUTO_SENDDLG"); if (ad) { snprintf(g_send_path, sizeof(g_send_path), "%s", ad); open_send(); }
