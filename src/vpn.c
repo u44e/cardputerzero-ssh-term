@@ -72,18 +72,24 @@ int vpn_up(const profile_t *p)
     if (!type || !*type || !strcmp(type, "none")) return 0;   /* no VPN */
     if (vpn_is_up()) { s_we_started = 0; return 0; }          /* already up */
 
-    /* The app never holds secrets — it only names an OS-side connection. Prefer
-     * NetworkManager (one command for every VPN type); otherwise fall back to the
-     * per-tool bring-up by config/connection name. Tailscale uses its own daemon
+    /* The app never holds secrets — it only names an OS-side connection. Try
+     * NetworkManager first (one command for every VPN type); if nmcli is absent
+     * OR the name isn't an NM connection (it may be a wg-quick/.ovpn config
+     * name), fall back to the per-tool bring-up. Tailscale uses its own daemon
      * state (auth done once out-of-band), so it needs no name. */
-    const char *argv[8] = {0};
+    snprintf(s_type, sizeof(s_type), "%s", type);
+    snprintf(s_cfg, sizeof(s_cfg), "%s", p->vpn);
     s_via_nm = 0;
+
+    if (strcmp(type, "tailscale") && nm_present() && p->vpn[0]) {
+        const char *nm[] = { "pkexec", "nmcli", "connection", "up", p->vpn, NULL };
+        if (run(nm) == 0) { s_via_nm = 1; s_we_started = 1; return 0; }
+        /* fall through: not an NM connection — try the type's own tool */
+    }
+
+    const char *argv[8] = {0};
     if (!strcmp(type, "tailscale"))
         argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "up";
-    else if (nm_present() && p->vpn[0]) {
-        argv[0] = "pkexec", argv[1] = "nmcli", argv[2] = "connection", argv[3] = "up", argv[4] = p->vpn;
-        s_via_nm = 1;
-    }
     else if (!strcmp(type, "wireguard"))
         argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "up", argv[3] = p->vpn;
     else if (!strcmp(type, "openvpn"))
@@ -95,10 +101,7 @@ int vpn_up(const profile_t *p)
     else
         return -1;
 
-    int rc = run(argv);
-    snprintf(s_type, sizeof(s_type), "%s", type);
-    snprintf(s_cfg, sizeof(s_cfg), "%s", p->vpn);
-    if (rc == 0) { s_we_started = 1; return 0; }
+    if (run(argv) == 0) { s_we_started = 1; return 0; }
     return -1;   /* caller offers "connect anyway / cancel" */
 }
 

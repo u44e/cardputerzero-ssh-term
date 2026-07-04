@@ -296,14 +296,16 @@ static void show_profiles(void)
         }
         mklabel(ui_font(14), COL_TEXT, 12, y + 2, p->name);
         char meta[180];
-        if (!strcmp(p->proto, "shell")) snprintf(meta, sizeof(meta), "shell");
+        if      (!strcmp(p->proto, "shell"))  snprintf(meta, sizeof(meta), "shell");
+        else if (!strcmp(p->proto, "serial")) snprintf(meta, sizeof(meta), "serial  %s:%s",
+                                                       p->host, p->port);   /* device:baud, no user */
         else snprintf(meta, sizeof(meta), "%s  %s%s%s:%s", p->proto,
                       p->user, p->user[0] ? "@" : "", p->host, p->port);
         lv_obj_t *m = mklabel(ui_font(12), COL_DIM, 150, y + 3, meta);
         if (!strcmp(p->proto, "telnet")) lv_obj_set_style_text_color(m, lv_color_hex(COL_AMBER), 0);
         if (p->log) { lv_obj_t *L = mklabel(ui_font(12), COL_AMBER, 0, 0, "L");
                       lv_obj_align(L, LV_ALIGN_TOP_RIGHT, -8, y + 3); }
-        if (p->vpn_type[0] && strcmp(p->vpn_type, "none")) {
+        if (strcmp(p->proto, "serial") && p->vpn_type[0] && strcmp(p->vpn_type, "none")) {
             lv_obj_t *V = mklabel(ui_font(12), COL_GREEN, 0, 0, "V");
             lv_obj_align(V, LV_ALIGN_TOP_RIGHT, p->log ? -24 : -8, y + 3); }
     }
@@ -436,6 +438,20 @@ static void editor_toggle(profile_t *p, int dir)
     }
 }
 
+/* toggle, then keep the cursor on the same logical row: crossing the serial
+ * boundary reflows the field list (User/VPN rows appear/disappear), so a raw
+ * numeric g_field would land on a different field and mis-toggle it. */
+static void editor_retoggle(profile_t *p, int dir)
+{
+    int kind = g_ef[g_field].kind;
+    editor_toggle(p, dir);
+    if (kind == 1) {                       /* proto changed -> re-anchor on the Proto row */
+        build_fields(p);
+        for (int i = 0; i < g_efn; i++) if (g_ef[i].kind == 1) { g_field = i; break; }
+    }
+    show_editor(g_edit_idx);
+}
+
 static void key_editor(uint32_t k)
 {
     profile_t *p = config_mutable(g_edit_idx);
@@ -453,13 +469,13 @@ static void key_editor(uint32_t k)
     switch (k) {
     case LV_KEY_UP:    if (g_field > 0) g_field--; show_editor(g_edit_idx); break;
     case LV_KEY_DOWN:  if (g_field < g_efn - 1) g_field++; show_editor(g_edit_idx); break;
-    case LV_KEY_LEFT:  editor_toggle(p, -1); show_editor(g_edit_idx); break;
-    case LV_KEY_RIGHT: editor_toggle(p, +1); show_editor(g_edit_idx); break;
+    case LV_KEY_LEFT:  editor_retoggle(p, -1); break;
+    case LV_KEY_RIGHT: editor_retoggle(p, +1); break;
     case LV_KEY_ENTER:
         if (field_is_text(g_field)) {
             snprintf(g_ebuf, sizeof(g_ebuf), "%s", g_ef[g_field].buf ? g_ef[g_field].buf : "");
             g_editing = 1; show_editor(g_edit_idx);
-        } else { editor_toggle(p, +1); show_editor(g_edit_idx); }
+        } else editor_retoggle(p, +1);
         break;
     case LV_KEY_ESC: show_profiles(); break;
     default:
@@ -493,6 +509,8 @@ static void key_profiles(uint32_t k)
 
 /* ---------------- terminal ---------------- */
 static lv_obj_t *g_status;
+static int      g_session_up;   /* a session exists (live or under an overlay) */
+static uint32_t g_disc_tick;    /* when SCR_TERM_DISC was entered (key grace period) */
 
 static void add_status_bar(const profile_t *p, int logging)
 {
@@ -517,7 +535,8 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     if (!argv || !p) { show_profiles(); return; }
     load_font_idx(size_to_idx(p->size));
 
-    g_overlay = NULL; g_backdrop = NULL;   /* cleaned by lv_obj_clean above */
+    g_overlay = NULL; g_backdrop = NULL;   /* cleaned by lv_obj_clean below */
+    g_scrollhint = NULL;                   /* ditto — reconnect path never passes show_profiles */
     term_render_pause(0);
     lv_obj_clean(g_root);
     lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), 0);
@@ -529,6 +548,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     /* Japanese input is handled by the OS IME (fcitx5-mozc): composed text
      * arrives via SDL_TEXTINPUT and is forwarded to the PTY by term_feed_key. */
     attach_capture();
+    g_session_up = 1;
     g_scr = SCR_TERM;
 }
 
@@ -537,7 +557,9 @@ static void connect_profile(int i)
     const profile_t *p = config_get(i);
     if (!p) return;
     g_cur_pidx = i;
-    if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p) != 0) {
+    /* serial is a local console — a stale vpn_type from a former ssh profile
+     * must not gate it (the editor hides the VPN rows for serial) */
+    if (strcmp(p->proto, "serial") && p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p) != 0) {
         char m[80]; snprintf(m, sizeof(m), tr("%s VPN did not come up","%s VPN を確立できませんでした"), p->vpn_type);
         open_dialog(SCR_PROFILES, COL_RED, tr("VPN failed","VPN失敗"), m, tr("Connect anyway","このまま接続"), do_connect_now);
         return;
@@ -548,29 +570,37 @@ static void connect_profile(int i)
 /* ---- disconnected review + reconnect (session ended / connect failed) ---- */
 static void end_session(void)   /* tear everything down and return to the list */
 {
+    sendfile_cancel();    /* stop an in-flight paced send before the PTY goes away */
+    g_session_up = 0;
     term_destroy();
     logsink_close();
     vpn_down();
     show_profiles();
 }
 
-static void reconnect_session(void)   /* re-run the same profile; VPN stays up */
+static void reconnect_session(void)   /* re-run the same profile through the VPN gate */
 {
+    sendfile_cancel();    /* a leftover send must not inject into the new session */
+    g_session_up = 0;
     term_destroy();
     logsink_close();      /* do_connect_now reopens the log if the profile has log=1 */
-    do_connect_now();
+    show_profiles();      /* clean base screen — the VPN-fail dialog may land on it */
+    connect_profile(g_cur_pidx);   /* re-runs vpn_up (idempotent when the VPN is still up) */
 }
 
 /* Session died: keep the final output on screen (don't destroy the terminal) and
  * recolor the status bar so the user can read the last lines / reconnect. */
 static void enter_disconnected(void)
 {
+    sendfile_cancel();    /* pointless against a dead PTY; must not outlive it */
+    g_session_up = 0;
     logsink_close();      /* finalize the log; the rendered buffer stays visible */
     if (g_status) {
         lv_obj_set_style_text_color(g_status, lv_color_hex(COL_RED), 0);
         lv_label_set_text(g_status, tr("DISCONNECTED   Enter:close  r:reconnect",
                                        "切断   Enter:閉じる  r:再接続"));
     }
+    g_disc_tick = lv_tick_get();   /* grace period: don't eat keystrokes in flight */
     g_scr = SCR_TERM_DISC;
 }
 
@@ -725,14 +755,19 @@ static void open_macros(void)
     g_overlay = overlay_panel(280, 150);
     ovlabel(ui_font(14), COL_TITLE, 8, 4, tr("Macros","マクロ"));
     int n = config_macro_count();
+    if (g_mac_sel >= n) g_mac_sel = n > 0 ? n - 1 : 0;
     if (n == 0)
         ovlabel(ui_font(12), COL_DIM, 12, 30, tr("(empty — n:new)","(未登録 — n:新規)"));
-    for (int i = 0; i < n; i++) {
+    const int VIS = 7;                          /* rows that fit above the footer (y=132) */
+    int start = g_mac_sel >= VIS ? g_mac_sel - VIS + 1 : 0;
+    for (int i = start; i < n && i < start + VIS; i++) {
         const macro_t *m = config_macro(i);
         char row[64];
         snprintf(row, sizeof(row), "%-10.10s %.20s", m->name, m->text);
-        ovlabel(ui_font(12), i == g_mac_sel ? COL_TEXT : COL_DIM, 12, 24 + i * 15, row);
+        ovlabel(ui_font(12), i == g_mac_sel ? COL_TEXT : COL_DIM, 12, 24 + (i - start) * 15, row);
     }
+    if (start > 0)           ovlabel(ui_font(12), COL_DIM, 264, 24, LV_SYMBOL_UP);
+    if (start + VIS < n)     ovlabel(ui_font(12), COL_DIM, 264, 24 + (VIS - 1) * 15, LV_SYMBOL_DOWN);
     ovlabel(ui_font(12), COL_DIM, 8, 132,
             tr("Enter:send n:new e:edit d:del ESC","Enter:送信 n:新規 e:編集 d:削除 ESC"));
 }
@@ -755,13 +790,28 @@ static void open_macro_edit(int idx)
         ovlabel(ui_font(12), i == g_mac_field ? COL_CYAN : COL_DIM, 76, 28 + i * 18, v);
     }
     ovlabel(ui_font(12), COL_DIM, 8, 90,
-            tr("Enter:edit  s:save  ESC:back","Enter:編集  s:保存  ESC:戻る"));
+            tr("Enter:edit  ESC:done (empty=discard)","Enter:編集  ESC:完了 (空は破棄)"));
+}
+
+/* leave the macro editor: discard an empty macro (Enter would no-op on it and
+ * phantom entries would otherwise be persisted by any later config_save), then
+ * persist — so n/e/d all leave term.conf consistent without a separate 's'. */
+static void macro_edit_done(void)
+{
+    macro_t *m = config_macro_mutable(g_mac_edit);
+    if (m && !m->text[0]) {
+        config_macro_delete(g_mac_edit);
+        if (g_mac_sel >= config_macro_count()) g_mac_sel = config_macro_count() - 1;
+        if (g_mac_sel < 0) g_mac_sel = 0;
+    }
+    config_save();
+    open_macros();
 }
 
 static void macro_send(int idx)
 {
     const macro_t *m = config_macro(idx);
-    if (!m || !m->text[0]) return;
+    if (!m || !m->text[0] || !term_is_alive()) return;   /* never write to a dead/absent PTY */
     term_send_bytes(m->text, (int)strlen(m->text));
     term_send_bytes("\r", 1);                       /* run it */
 }
@@ -805,9 +855,9 @@ static void key_macro_edit(uint32_t k)
     case LV_KEY_UP:    if (g_mac_field > 0) g_mac_field--; open_macro_edit(g_mac_edit); break;
     case LV_KEY_DOWN:  if (g_mac_field < 1) g_mac_field++; open_macro_edit(g_mac_edit); break;
     case LV_KEY_ENTER: snprintf(g_ebuf, sizeof(g_ebuf), "%s", buf); g_mac_editing = 1; open_macro_edit(g_mac_edit); break;
-    case LV_KEY_ESC:   open_macros(); break;
+    case LV_KEY_ESC:   macro_edit_done(); break;
     default:
-        if (k == 's') { config_save(); open_macros(); }
+        if (k == 's') macro_edit_done();   /* kept as a habit alias for ESC */
         break;
     }
 }
@@ -1103,6 +1153,8 @@ void key_cb(lv_event_t *e)
         break;
     case SCR_TERM_DISC:                                            /* session ended: review output */
         if (k & 0x20000000u) { term_alt_scroll(k & 0xFF); break; } /* Alt+arrow -> scroll history */
+        if (lv_tick_elaps(g_disc_tick) < 600) break;   /* grace: the flip is async (400ms poll) —
+                                                          don't turn an in-flight keystroke into r/Enter */
         if (k == 'r' || k == 'R')                       reconnect_session();
         else if (k == LV_KEY_ENTER || k == LV_KEY_ESC)  end_session();
         break;
@@ -1126,8 +1178,14 @@ void key_cb(lv_event_t *e)
 static void watch_cb(lv_timer_t *t)
 {
     (void)t;
-    if (g_scr == SCR_TERM && !term_is_alive())
-        enter_disconnected();   /* freeze output for review instead of bouncing to the list */
+    if (!g_session_up || term_is_alive()) return;
+    switch (g_scr) {   /* terminal + every overlay that floats above a live session */
+    case SCR_TERM: case SCR_MENU: case SCR_MACROS: case SCR_MACRO_EDIT:
+    case SCR_FILES: case SCR_SEND:
+        kill_overlay();          /* no-op on SCR_TERM */
+        enter_disconnected();    /* freeze output for review instead of bouncing to the list */
+        break;
+    }
 }
 
 void app_main(lv_obj_t *parent)
@@ -1169,6 +1227,8 @@ void app_event(int type, void *data)
          * Tear everything down from any screen so no PTY/log/VPN is left behind.
          * (term_destroy/vpn_down/logsink_close are idempotent.) */
         kill_overlay();
+        sendfile_cancel();
+        g_session_up = 0;
         term_destroy();
         logsink_close();
         vpn_down();

@@ -13,7 +13,8 @@
 
 #define MAX_ROWS 40
 #define MAX_COLS 128
-#define MAX_RUNS 28          /* colored runs per row */
+#define MAX_RUNS 64          /* style runs per row (split on fg/bg/underline);
+                                >= max columns at supported font sizes (45@12px) */
 #define COL_FG   0x4CD96A    /* default fg (green, matches native console) */
 #define SB_CAP   400         /* scrollback lines kept */
 
