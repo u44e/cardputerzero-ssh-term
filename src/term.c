@@ -1,5 +1,6 @@
-/* term.c — Phase 1 terminal core: PTY + libvterm + per-row LVGL labels.
- * Monochrome (green-on-black) for now; SGR colors come in a later phase. */
+/* term.c — terminal core: PTY + libvterm + per color-run LVGL labels.
+ * SGR: foreground + background colors, reverse-video (fg/bg swap) and underline.
+ * Default is green-on-black to match the native console. */
 #include "term.h"
 #include "pty.h"
 #include "logsink.h"
@@ -84,6 +85,18 @@ static uint32_t cell_rgb(VTermScreenCell *cell)
     return ((uint32_t)c.rgb.red << 16) | ((uint32_t)c.rgb.green << 8) | c.rgb.blue;
 }
 
+/* fg/bg (as RGB) + underline for a live cell, applying reverse-video (swap fg/bg). */
+static void cell_colors(VTermScreenCell *cell, uint32_t *fg, uint32_t *bg, int *ul)
+{
+    VTermColor f = cell->fg, b = cell->bg;
+    vterm_screen_convert_color_to_rgb(g.vts, &f);
+    vterm_screen_convert_color_to_rgb(g.vts, &b);
+    uint32_t frgb = ((uint32_t)f.rgb.red << 16) | ((uint32_t)f.rgb.green << 8) | f.rgb.blue;
+    uint32_t brgb = ((uint32_t)b.rgb.red << 16) | ((uint32_t)b.rgb.green << 8) | b.rgb.blue;
+    if (cell->attrs.reverse) { uint32_t t = frgb; frgb = brgb; brgb = t; }
+    *fg = frgb; *bg = brgb; *ul = cell->attrs.underline ? 1 : 0;
+}
+
 /* a line scrolled off the top -> store it in the scrollback ring */
 static int sb_push(int cols, const VTermScreenCell *cells, void *user)
 {
@@ -126,14 +139,19 @@ static void clear_runs(int r)
     g.runs[r] = 0;
 }
 
-static lv_obj_t *mkrun(int r, int col, uint32_t rgb, const char *txt)
+static lv_obj_t *mkrun(int r, int col, uint32_t fg, uint32_t bg, int ul, const char *txt)
 {
     lv_obj_t *l = lv_label_create(g.parent);
     lv_obj_set_style_text_font(l, g.font, 0);
-    lv_obj_set_style_text_color(l, lv_color_hex(rgb), 0);
+    lv_obj_set_style_text_color(l, lv_color_hex(fg), 0);
     lv_obj_set_style_pad_all(l, 0, 0);
     lv_obj_set_style_text_letter_space(l, 0, 0);
     lv_obj_set_style_text_line_space(l, 0, 0);
+    if (bg != 0x000000) {                       /* non-default bg (incl. reverse-video) */
+        lv_obj_set_style_bg_color(l, lv_color_hex(bg), 0);
+        lv_obj_set_style_bg_opa(l, LV_OPA_COVER, 0);
+    }
+    if (ul) lv_obj_set_style_text_decor(l, LV_TEXT_DECOR_UNDERLINE, 0);
     lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
     lv_obj_set_pos(l, col * g.cell_w, r * g.cell_h);
     lv_label_set_text(l, txt);
@@ -157,32 +175,32 @@ static void render_cb(lv_timer_t *t)
         int idx = g.sb_n - g.scroll + r;            /* content line: <sb_n = history */
         int live = idx >= g.sb_n;
         sbline_t *L = live ? NULL : &g.sb[(g.sb_head + idx) % SB_CAP];
-        int started = 0, rstart = 0, li = 0;
-        uint32_t rcol = 0;
+        int started = 0, rstart = 0, li = 0, rul = 0;
+        uint32_t rfg = 0, rbg = 0;
         for (int c = 0; c < g.cols; ) {
-            uint32_t cp, rgb; int w = 1;
+            uint32_t cp, fg, bg = 0x000000; int ul = 0, w = 1;
             if (live) {
                 VTermPos pos; pos.row = idx - g.sb_n; pos.col = c;
                 VTermScreenCell cell;
                 if (!vterm_screen_get_cell(g.vts, pos, &cell)) { c++; continue; }
                 cp = cell.chars[0]; if (cp == 0 || cp == (uint32_t)-1) cp = ' ';
-                rgb = cell_rgb(&cell); w = cell.width > 0 ? cell.width : 1;
-            } else {
-                if (L && c < L->len) { cp = L->cp[c]; rgb = L->rgb[c]; }
-                else { cp = ' '; rgb = COL_FG; }
+                cell_colors(&cell, &fg, &bg, &ul); w = cell.width > 0 ? cell.width : 1;
+            } else {   /* scrollback history keeps fg only (plain scrolled-off text) */
+                if (L && c < L->len) { cp = L->cp[c]; fg = L->rgb[c]; }
+                else { cp = ' '; fg = COL_FG; }
             }
-            if (!started) { started = 1; rstart = c; rcol = rgb; li = 0; }
-            else if (rgb != rcol) {
+            if (!started) { started = 1; rstart = c; rfg = fg; rbg = bg; rul = ul; li = 0; }
+            else if (fg != rfg || bg != rbg || ul != rul) {
                 run[li] = 0;
-                if (g.runs[r] < MAX_RUNS) g.runlbl[r][g.runs[r]++] = mkrun(r, rstart, rcol, run);
-                rstart = c; rcol = rgb; li = 0;
+                if (g.runs[r] < MAX_RUNS) g.runlbl[r][g.runs[r]++] = mkrun(r, rstart, rfg, rbg, rul, run);
+                rstart = c; rfg = fg; rbg = bg; rul = ul; li = 0;
             }
             if (li < MAX_COLS * 4 - 4) li += cp_to_utf8(cp, run + li);
             c += w;
         }
         if (started) {
             run[li] = 0;
-            if (g.runs[r] < MAX_RUNS) g.runlbl[r][g.runs[r]++] = mkrun(r, rstart, rcol, run);
+            if (g.runs[r] < MAX_RUNS) g.runlbl[r][g.runs[r]++] = mkrun(r, rstart, rfg, rbg, rul, run);
         }
     }
 
@@ -276,7 +294,7 @@ void term_create(lv_obj_t *parent, const char *const argv[],
     vterm_state_set_default_colors(g.state, &dfg, &dbg);
 
     if (pty_open(&g.pty, argv, cols, rows) != 0) {
-        g.runlbl[0][0] = mkrun(0, 0, 0xFF6B6B, "pty open failed");
+        g.runlbl[0][0] = mkrun(0, 0, 0xFF6B6B, 0x000000, 0, "pty open failed");
         g.runs[0] = 1;
         return;
     }
