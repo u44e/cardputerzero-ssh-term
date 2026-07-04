@@ -6,6 +6,7 @@
 #include "logsink.h"
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +31,7 @@ static struct {
     volatile int  running;
     volatile int  dirty;
     volatile int  alive;
-    volatile unsigned rx_seq;   /* bumped on every PTY read (output-activity clock) */
+    atomic_uint   rx_seq;       /* bumped on every PTY read (output-activity clock; cross-thread) */
     int           inited;      /* resources live (mutex/vt/reader) — destroy guard */
     int           paused;      /* freeze rendering while an overlay covers the term */
     sbline_t     *sb;          /* scrollback ring */
@@ -75,7 +76,7 @@ static void *reader_fn(void *arg)
         pthread_mutex_lock(&g.mtx);
         vterm_input_write(g.vt, buf, (size_t)n);
         g.dirty = 1;
-        g.rx_seq++;                       /* observed by sendfile's wait-for-prompt pacing */
+        atomic_fetch_add_explicit(&g.rx_seq, 1, memory_order_relaxed);  /* sendfile pacing clock */
         pthread_mutex_unlock(&g.mtx);
     }
     return NULL;
@@ -201,11 +202,8 @@ static lv_obj_t *mkrun(int r, int col, uint32_t fg, uint32_t bg, int ul, const c
 /* render: cells -> per color-run labels (LVGL thread) */
 void term_render_pause(int paused) { g.paused = paused ? 1 : 0; }
 
-static void render_cb(lv_timer_t *t)
+static void do_render(void)
 {
-    (void)t;
-    if (g.paused) return;         /* an overlay covers the terminal — don't repaint/raise cursor */
-    if (!g.dirty) return;
     pthread_mutex_lock(&g.mtx);
     g.dirty = 0;
 
@@ -256,6 +254,18 @@ static void render_cb(lv_timer_t *t)
 
     pthread_mutex_unlock(&g.mtx);
 }
+
+static void render_cb(lv_timer_t *t)
+{
+    (void)t;
+    if (g.paused) return;         /* an overlay covers the terminal — don't repaint/raise cursor */
+    if (!g.dirty) return;
+    do_render();
+}
+
+/* Force one repaint even while paused — used by copy mode to reflect a
+ * history scroll without letting live output repaint over the selection. */
+void term_render_once(void) { if (g.vt) do_render(); }
 
 #if defined(SSH_TERM_TEST_HOOKS)
 /* headless self-test: type g.test through the real key path (emulator/CI only) */
@@ -406,7 +416,10 @@ int term_is_alive(void)
     return g.alive && g.pty.fd >= 0;
 }
 
-unsigned term_rx_seq(void) { return g.rx_seq; }   /* increments while output arrives */
+unsigned term_rx_seq(void)   /* increments while output arrives (lock-free reader) */
+{
+    return atomic_load_explicit(&g.rx_seq, memory_order_relaxed);
+}
 
 void term_destroy(void)
 {

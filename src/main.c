@@ -910,6 +910,7 @@ static void copy_mode_off(void)
 {
     if (g_copybar)  { lv_obj_delete(g_copybar);  g_copybar = NULL; }
     if (g_copyhint) { lv_obj_delete(g_copyhint); g_copyhint = NULL; }
+    if (g_copy_row >= 0) term_render_pause(0);   /* resume live output */
     g_copy_row = -1;
 }
 
@@ -917,6 +918,8 @@ static void copy_mode_on(void)
 {
     if (g_copy_row >= 0) return;
     g_copy_row = g_rows - 1;
+    term_render_pause(1);        /* freeze the frame we're selecting from */
+    term_render_once();          /* ...but show the latest content first */
     g_copybar = lv_obj_create(g_root);
     lv_obj_remove_flag(g_copybar, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_border_width(g_copybar, 0, 0);
@@ -935,28 +938,29 @@ static void copy_mode_on(void)
 
 static void copy_mode_key(uint32_t k)
 {
-    if (k & 0x20000000u) {                       /* Alt+arrow still pages the history */
-        term_alt_scroll(k & 0xFF);
-        copy_bar_place();
-        return;
-    }
-    switch (k) {
+    int scrolled = 0;
+    if (k & 0x20000000u) { term_alt_scroll(k & 0xFF); scrolled = 1; }   /* Alt+arrow pages history */
+    else switch (k) {
     case LV_KEY_UP:
         if (g_copy_row > 0) g_copy_row--;
-        else term_scroll(+1);                    /* highlight at the top -> scroll history */
-        copy_bar_place(); break;
+        else { term_scroll(+1); scrolled = 1; }  /* highlight at the top -> scroll history */
+        break;
     case LV_KEY_DOWN:
         if (g_copy_row < g_rows - 1) g_copy_row++;
-        else if (term_scroll_pos() > 0) term_scroll(-1);
-        copy_bar_place(); break;
+        else if (term_scroll_pos() > 0) { term_scroll(-1); scrolled = 1; }
+        break;
     case LV_KEY_ENTER:
         term_copy_line(g_copy_row, g_clip, sizeof(g_clip));
         copy_mode_off();
-        break;
+        return;
     case LV_KEY_ESC:
         copy_mode_off();
-        break;
+        return;
+    default:
+        return;
     }
+    if (scrolled) term_render_once();            /* repaint the scrolled frame (still paused) */
+    copy_bar_place();                            /* keep the bar above the labels */
 }
 
 /* Alt + arrow scrolls the scrollback while staying in the live terminal. */
@@ -1185,9 +1189,8 @@ static void key_menu(uint32_t k)
             close_overlay();
             break;
         case MI_BREAK:
-            /* picocom escape: C-a C-b = send BREAK (router password recovery).
-             * Device checklist: verify the sequence against the installed picocom. */
-            term_send_bytes("\x01\x02", 2);
+            /* picocom escape C-a C-\ = send serial BREAK (router password recovery). */
+            if (term_is_alive()) term_send_bytes("\x01\x1c", 2);
             close_overlay();
             break;
         case MI_CLOSE: close_overlay(); end_session(); break;
@@ -1375,6 +1378,7 @@ void app_event(int type, void *data)
         logsink_close();
         vpn_down();
     } else if (type == CZ_EV_SIDE_KEY && g_scr == SCR_TERM) {
+        if (g_copy_row >= 0) { copy_mode_off(); return; }   /* SIDE cancels copy mode, not open menu */
         g_menu_sel = 0; open_menu();
     }
 }

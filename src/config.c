@@ -221,7 +221,10 @@ const char *const *config_argv(int i)
     }
     if (!strcmp(p->proto, "serial")) {
         /* USB-serial console via picocom (host=device, port=baud, sfmt=8N1 etc.) */
-        const char *f = (p->sfmt[0] && p->sfmt[1] && p->sfmt[2]) ? p->sfmt : "8N1";
+        const char *f = p->sfmt;
+        if (!((f[0] == '7' || f[0] == '8') && (f[1] == 'N' || f[1] == 'E' || f[1] == 'O') &&
+              (f[2] == '1' || f[2] == '2')))
+            f = "8N1";   /* reject anything not a valid databits/parity/stopbits triple */
         snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "115200");
         snprintf(dest, sizeof(dest), "%s", p->host[0] ? p->host : "/dev/ttyUSB0");
         snprintf(db,  sizeof(db),  "%c", f[0]);                      /* 7 | 8 */

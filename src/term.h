@@ -33,6 +33,7 @@ void term_destroy(void);
 
 /* Freeze/resume rendering (and cursor raise) while an overlay covers the term. */
 void term_render_pause(int paused);
+void term_render_once(void);   /* force one repaint even while paused (copy-mode scroll) */
 
 /* Scrollback view: +delta scrolls up into history, -delta toward live. */
 void term_scroll(int delta);

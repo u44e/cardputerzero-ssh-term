@@ -19,6 +19,7 @@ static struct {
     size_t  len, pos;
     lv_timer_t *tmr;
     int      wait;          /* 0 = fixed pace, 1 = wait-for-prompt (idle-settle) */
+    int      saw_rx;        /* have we seen ANY reply to the current line yet? */
     unsigned last_seq;      /* term_rx_seq() at the previous tick */
     uint32_t idle_tick;     /* lv_tick when output last went quiet */
     uint32_t sent_tick;     /* lv_tick when the current line was sent */
@@ -103,6 +104,7 @@ static void sf_send_line(void)
     sf.pos = end;
     sf.sent_tick = sf.idle_tick = lv_tick_get();
     sf.last_seq = term_rx_seq();
+    sf.saw_rx = 0;             /* wait for the device to actually reply before settling */
 }
 
 static void sf_tick(lv_timer_t *t)
@@ -114,10 +116,11 @@ static void sf_tick(lv_timer_t *t)
     }
     if (!sf.wait) { sf_send_line(); return; }   /* fixed pace: one line per tick */
 
-    /* wait-for-prompt: send the next line only once output has settled. */
+    /* wait-for-prompt: send the next line once the reply has arrived AND settled.
+     * If a line draws no reply at all, the MAX_WAIT ceiling releases it. */
     unsigned seq = term_rx_seq();
-    if (seq != sf.last_seq) { sf.last_seq = seq; sf.idle_tick = lv_tick_get(); }  /* still talking */
-    if (lv_tick_elaps(sf.idle_tick) >= SF_SETTLE_MS ||
+    if (seq != sf.last_seq) { sf.last_seq = seq; sf.idle_tick = lv_tick_get(); sf.saw_rx = 1; }
+    if ((sf.saw_rx && lv_tick_elaps(sf.idle_tick) >= SF_SETTLE_MS) ||
         lv_tick_elaps(sf.sent_tick) >= SF_MAX_WAIT_MS)
         sf_send_line();
 }
