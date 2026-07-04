@@ -58,6 +58,11 @@ static lv_obj_t   *g_copybar, *g_copyhint; /* line-copy mode highlight + hint */
 static int         g_copy_row = -1;        /* -1 = copy mode off; else highlighted row */
 static lv_obj_t   *g_sendprog;             /* file-injection progress badge (status bar) */
 static lv_obj_t   *g_logview_ta;           /* log viewer scrollable textarea */
+static lv_obj_t   *g_logprompt;            /* log viewer bottom line (guide / find box) */
+static char        g_logbuf[8192];         /* stripped log text (searched in place) */
+static char        g_logfind[48];          /* last search query */
+static int         g_logfinding;           /* 1 = typing a query */
+static int         g_logfind_pos;          /* byte offset to resume the next search from */
 
 /* editor state */
 static int  g_edit_idx = 0;
@@ -288,6 +293,7 @@ static void show_profiles(void)
     lv_obj_clean(g_root);
     g_sb_time = NULL; g_scrollhint = NULL;   /* labels were just deleted */
     g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1; g_sendprog = NULL;
+    g_logview_ta = NULL; g_logprompt = NULL;
     lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
@@ -655,6 +661,35 @@ static void show_logs(void)
     attach_capture();
 }
 
+static void logview_prompt(void)   /* bottom line: guide, or the find box while typing */
+{
+    if (!g_logprompt) return;
+    char s[80];
+    if (g_logfinding) snprintf(s, sizeof(s), tr("find: %s_","検索: %s_"), g_ebuf);
+    else if (g_logfind[0]) snprintf(s, sizeof(s), tr("/:find  n:next  ESC:back   [%s]","/:検索 n:次 ESC:戻る [%s]"), g_logfind);
+    else snprintf(s, sizeof(s), tr(LV_SYMBOL_UP LV_SYMBOL_DOWN ":scroll  /:find  ESC:back","↑↓:スクロール /:検索 ESC:戻る"));
+    lv_label_set_text(g_logprompt, s);
+}
+
+/* jump the textarea cursor to the next match of g_logfind (wraps once). */
+static void logview_search(void)
+{
+    if (!g_logfind[0] || !g_logview_ta) return;
+    int len = (int)strlen(g_logbuf);
+    if (g_logfind_pos > len) g_logfind_pos = 0;
+    char *hit = strstr(g_logbuf + g_logfind_pos, g_logfind);
+    if (!hit && g_logfind_pos > 0) hit = strstr(g_logbuf, g_logfind);   /* wrap to top */
+    if (hit) {
+        int off = (int)(hit - g_logbuf);
+        int ci = 0;                                     /* byte offset -> codepoint index */
+        for (int b = 0; b < off; b++) if (((unsigned char)g_logbuf[b] & 0xC0) != 0x80) ci++;
+        lv_textarea_set_cursor_pos(g_logview_ta, ci);   /* scrolls the match into view */
+        g_logfind_pos = off + 1;
+    } else {
+        if (g_logprompt) lv_label_set_text(g_logprompt, tr("not found","見つかりません"));
+    }
+}
+
 static void show_logview(int i)
 {
     g_scr = SCR_LOGVIEW;
@@ -672,16 +707,36 @@ static void show_logview(int i)
     lv_obj_set_size(ta, 320, 132);
     lv_obj_set_pos(ta, 0, 20);
     lv_textarea_set_cursor_click_pos(ta, false);
-    lv_textarea_set_text(ta, "");
 
-    static char buf[8192];
-    logsink_read_stripped(i, buf, sizeof(buf));
-    lv_textarea_set_text(ta, buf);
+    logsink_read_stripped(i, g_logbuf, sizeof(g_logbuf));
+    lv_textarea_set_text(ta, g_logbuf);
+    lv_textarea_set_cursor_pos(ta, 0);
     g_logview_ta = ta;
+    g_logfinding = 0; g_logfind_pos = 0; g_logfind[0] = 0;
 
-    lv_obj_t *guide = mklabel(ui_font(12), COL_DIM, 0, 0, tr(LV_SYMBOL_UP LV_SYMBOL_DOWN ":scroll  ESC:back","↑↓:スクロール ESC:戻る"));
-    lv_obj_align(guide, LV_ALIGN_BOTTOM_LEFT, 8, -2);
+    g_logprompt = mklabel(ui_font(12), COL_DIM, 0, 0, "");
+    lv_obj_set_style_bg_color(g_logprompt, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(g_logprompt, LV_OPA_COVER, 0);
+    lv_obj_set_width(g_logprompt, 320);
+    lv_obj_align(g_logprompt, LV_ALIGN_BOTTOM_LEFT, 8, -2);
+    logview_prompt();
     attach_capture();
+}
+
+static void key_logview(uint32_t k)
+{
+    if (g_logfinding) {
+        if (k == LV_KEY_ENTER)      { snprintf(g_logfind, sizeof(g_logfind), "%s", g_ebuf); g_logfinding = 0; g_logfind_pos = 0; logview_search(); logview_prompt(); }
+        else if (k == LV_KEY_ESC)   { g_logfinding = 0; logview_prompt(); }
+        else if (k == LV_KEY_BACKSPACE) { size_t l = strlen(g_ebuf); if (l) g_ebuf[l-1] = 0; logview_prompt(); }
+        else if (k >= 0x20 && k < 0x7f) { size_t l = strlen(g_ebuf); if (l < sizeof(g_ebuf)-1) { g_ebuf[l]=(char)k; g_ebuf[l+1]=0; } logview_prompt(); }
+        return;
+    }
+    if (k == LV_KEY_ESC) show_logs();
+    else if (k == LV_KEY_DOWN && g_logview_ta) lv_obj_scroll_by(g_logview_ta, 0, -28, LV_ANIM_OFF);
+    else if (k == LV_KEY_UP && g_logview_ta)   lv_obj_scroll_by(g_logview_ta, 0,  28, LV_ANIM_OFF);
+    else if (k == '/') { g_logfinding = 1; g_ebuf[0] = 0; logview_prompt(); }
+    else if ((k == 'n' || k == 'N') && g_logfind[0]) { logview_search(); logview_prompt(); }
 }
 
 static void key_logs(uint32_t k)
@@ -1309,11 +1364,7 @@ void key_cb(lv_event_t *e)
     case SCR_PROFILES: key_profiles(k); break;
     case SCR_EDITOR:   key_editor(k); break;
     case SCR_LOGS:     key_logs(k); break;
-    case SCR_LOGVIEW:
-        if (k == LV_KEY_ESC) show_logs();
-        else if (k == LV_KEY_DOWN && g_logview_ta) lv_obj_scroll_by(g_logview_ta, 0, -28, LV_ANIM_OFF);
-        else if (k == LV_KEY_UP && g_logview_ta)   lv_obj_scroll_by(g_logview_ta, 0,  28, LV_ANIM_OFF);
-        break;
+    case SCR_LOGVIEW:  key_logview(k); break;
     case SCR_MENU:     key_menu(k); break;
     case SCR_MACROS:   key_macros(k); break;
     case SCR_MACRO_EDIT: key_macro_edit(k); break;
@@ -1374,6 +1425,8 @@ void app_main(lv_obj_t *parent)
     const char *ae = getenv("AUTO_EDIT");    if (ae) show_editor(atoi(ae));
     const char *al = getenv("AUTO_LOGS");    if (al) show_logs();
     const char *alv = getenv("AUTO_LOGVIEW"); if (alv) { logsink_list_count(); show_logview(atoi(alv)); }
+    const char *alf = getenv("AUTO_LOGFIND"); if (alf && g_scr == SCR_LOGVIEW) {
+        snprintf(g_logfind, sizeof(g_logfind), "%s", alf); logview_search(); logview_prompt(); }
     const char *as = getenv("AUTO_SENDFILE"); if (as) sendfile_start(as, getenv("AUTO_SENDWAIT") != NULL);
     const char *am = getenv("AUTO_MENU");     if (am) { g_menu_sel = 0; open_menu(); }
     const char *amc = getenv("AUTO_MACROS");  if (amc) { g_mac_sel = 0; open_macros(); }
