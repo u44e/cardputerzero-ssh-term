@@ -1,9 +1,13 @@
-# ssh_term — CardputerZero SSH / telnet / shell terminal
+# NetTerm (`ssh_term`) — CardputerZero SSH / telnet / serial / shell terminal
 
 A portable terminal for the **M5CardputerZero** (AArch64 Linux / Raspberry Pi OS, LVGL 9.5,
-320×170). SSH / telnet / local-shell sessions with connection profiles, VPN,
-session logging, file injection (any text, charset auto-detect), Japanese input
-(OS IME), and a switchable EN/JA UI.
+320×170). SSH / telnet / **USB-serial console** / local-shell sessions with
+connection profiles, OS-managed VPN, session logging, file injection (any text,
+charset auto-detect), quick-send macros, Japanese input (OS IME), and a
+switchable EN/JA UI.
+
+> Display name **NetTerm** (SSH is just one of four transports); the package /
+> binary id stays `ssh_term`, so all build & deploy commands are unchanged.
 
 The terminal core is a clean reimplementation — **libvterm (MIT) + a self-written
 `forkpty` wrapper** — so no third-party launcher code is copied. Fonts at runtime

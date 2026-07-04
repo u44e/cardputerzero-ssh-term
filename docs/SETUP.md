@@ -1,4 +1,4 @@
-# ssh_term 実機セットアップ手順書（M5CardputerZero）
+# NetTerm (ssh_term) 実機セットアップ手順書（M5CardputerZero）
 
 Mac でビルドして **M5CardputerZero**（AArch64 / Raspberry Pi OS）へ導入し、
 日本語入力（OS IME）まで使えるようにする手順。所要 30〜60 分（初回のエミュビルドを除く）。

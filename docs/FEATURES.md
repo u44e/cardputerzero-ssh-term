@@ -1,6 +1,7 @@
-# ssh_term 機能一覧
+# NetTerm (ssh_term) 機能一覧
 
-**M5CardputerZero**（AArch64 Linux / Raspberry Pi OS / LVGL 9.5, 320×170）向け SSH/telnet/shell ターミナル。
+**M5CardputerZero**（AArch64 Linux / Raspberry Pi OS / LVGL 9.5, 320×170）向け SSH/telnet/serial/shell ターミナル。
+表示名は **NetTerm**（SSHは4トランスポートの1つのため）。パッケージ/バイナリIDは `ssh_term` のまま。
 凡例: ✅ 実装・emで検証済 / ◐ 一部（実機で全対応）/ ⏳ 実機でのみ動作・未検証 / ➖ 仕様上あえて
 
 ## ターミナルコア

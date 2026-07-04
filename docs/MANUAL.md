@@ -1,8 +1,8 @@
-# ssh_term 取扱説明書
+# NetTerm (ssh_term) 取扱説明書
 
-**M5CardputerZero**（AArch64 Linux / Raspberry Pi OS, 320×170）用の **SSH / telnet / ローカルシェル** 端末です。
+**M5CardputerZero**（AArch64 Linux / Raspberry Pi OS, 320×170）用の **SSH / telnet / USB-シリアル / ローカルシェル** 端末です。
 接続先プロファイル・VPN・セッションログ・**ファイル流し込み**（任意のテキストを文字コード自動認識して送出）・
-日本語入力・フォントサイズ変更に対応します。
+**マクロ（よく使うコマンドの送信）**・日本語入力・フォントサイズ変更に対応します。
 
 > 画面は本体スキン付きエミュレータの画面（アカウント情報はマスク）。
 

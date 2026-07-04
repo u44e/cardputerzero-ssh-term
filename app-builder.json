@@ -1,9 +1,9 @@
 {
   "package_name": "ssh_term",
   "version": "0.1.0",
-  "app_name": "SSH Terminal",
+  "app_name": "NetTerm",
   "bin_name": "ssh_term",
-  "description": "SSH/telnet/shell terminal for M5CardputerZero — profiles, VPN, session logs, file injection (charset auto-detect), Japanese input, font-size, EN/JA UI",
+  "description": "SSH/telnet/serial/shell terminal for M5CardputerZero — profiles, OS-managed VPN, session logs, file injection (charset auto-detect), quick-send macros, Japanese input, font-size, EN/JA UI",
   "runtime": "lvgl-dlopen",
   "lvgl_version": "9.5",
   "icon": "icon.png",
