@@ -50,13 +50,17 @@
 |------|------|
 | Name | 表示名 |
 | Host / Port / User | 接続先 |
-| Proto | `ssh / telnet / shell`（`←→`で切替） |
+| Proto | `ssh / telnet / shell / serial`（`←→`で切替） |
 | **VPN type** | `none / WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale`（iPhone風に`←→`で選択） |
-| VPN cfg | VPN設定名/パス（wg/ovpnのconfig名、ipsecのconnection名 等） |
+| **Connection** | OS側 VPN 接続の**名前**（NM接続名 / wg・ovpn の config名 / ipsec connection名）。**秘密情報は入力せず OS が保持**。Tailscale は不要 |
 | Log | セッションログ保存 ON/OFF |
 | Size | 端末フォント `12 / 16 / 20px` |
 
 操作：`↑↓`項目移動 / `Enter`テキスト編集（物理キーボードで入力→`Enter`確定）/ `←→`選択項目の切替 / `s`保存 / `ESC`戻る。
+
+> **serial（USB-シリアルコンソール）**：Proto を `serial` にすると項目が **Device**（例 `/dev/ttyUSB0`）と
+> **Baud**（例 `9600`/`115200`）に変わります（User/VPN は非表示）。接続すると `picocom` でシリアルコンソールに
+> つながります（実機に `apt install picocom` が必要）。網機器のコンソールポート接続用です。
 
 ---
 
@@ -68,7 +72,10 @@
 
 - 下部のステータスバー＝`接続先名 ● CONNECTED  VPN  ◉REC(ログ中)  SIDE=menu`。
 - `ESC` は端末へ素通し（vim等で使用）。離脱・操作は **SIDEキー** で Session Menu を開きます。
-- 切断するとステータスが `● DISCONNECTED` になり、`Enter`で一覧へ戻ります。
+- **スクロールバック**：`Alt+↑↓`で1行ずつ、`Alt+←→`で1画面ずつ過去の出力を遡って表示します（ライブのまま。履歴は最大400行）。何かキーを打つと自動で最新表示へ戻り、履歴表示中は下部にヒントを表示します。
+- 日本語・CJK を含む出力もそのまま表示されます（端末フォントに CJK フォントをfallback）。
+- 切断・接続失敗するとステータスが赤の `● DISCONNECTED` になり、**最後の出力（エラー等）はそのまま残ります**。
+  `Enter`（または `ESC`）で一覧へ戻り、`r` で同じ接続先へ**再接続**します（`Alt+矢印`で履歴も確認できます）。
 
 ---
 
@@ -82,11 +89,31 @@
 |------|------|
 | Send file... | ファイル（設定/スクリプト/任意テキスト）を流し込む（→ 6章） |
 | Font size `< 12px >` | フォントサイズを実行中に変更 |
+| Macros... | 登録済みコマンドを選んで送信（→ 5b章） |
 | Toggle log | ログ保存のON/OFF |
 | Close session | セッション終了→一覧へ |
 | Back | メニューを閉じる |
 
 `↑↓`移動 / `Enter`決定 / `ESC`または`SIDE`で閉じる。
+
+---
+
+## 5b. マクロ（よく使うコマンドの送信）
+
+よく使う1行コマンド（`show running-config`、`df -h` 等）を登録しておき、Session Menu →「Macros...」から
+選んで**そのまま実行**できます（本文＋Enter が端末へ送られます）。
+
+| キー | 動作 |
+|------|------|
+| `↑↓` | 選択 |
+| `Enter` | 選択中のマクロを送信（実行） |
+| `n` | 新規登録（名前＋コマンドを編集） |
+| `e` | 選択中を編集 |
+| `d` | 選択中を削除 |
+| `ESC` | 閉じる |
+
+編集画面は `↑↓`で Name/Text 切替、`Enter`で入力開始→`Enter`確定、`s`で保存、`ESC`で戻る。
+マクロは接続先によらず共通で、`term.conf` に保存されます（最大12件）。
 
 ---
 
@@ -183,18 +210,25 @@ VPN起動に失敗した時も同様のダイアログで「Connect anyway（こ
 
 ## 11. VPN
 
-接続先の **VPN type** で方式を選び、**VPN cfg** に設定名を入れます。接続時に自動でVPNを張ってから接続、
-セッション終了で切断（自分で張った時のみ）。方式ごとに以下を `pkexec` で実行します（実機）。
+VPN は **OS 側の設定を利用します**（鍵・パスワード等の秘密情報は**アプリに保存しません**）。あらかじめ OS 側に
+VPN 接続を作成しておき（NetworkManager の接続、`/etc/wireguard/*.conf` 等）、接続先の **VPN type** で方式を選び、
+**Connection（接続名）** にその名前を入れるだけです。接続時に自動でVPNを張ってから接続、セッション終了で切断
+（自分で張った時のみ）。
 
-| 方式 | 起動コマンド |
+- **NetworkManager がある場合**（Raspberry Pi OS Bookworm の既定）：`pkexec nmcli connection up <接続名>` の
+  1コマンドで全方式を起動（終了は down）。
+- 無い場合は方式ごとに fallback：
+
+| 方式 | 起動コマンド（接続名を渡すだけ） |
 |------|------|
-| WireGuard | `wg-quick up <cfg>` |
-| OpenVPN | `openvpn --config <cfg> --daemon` |
-| IKEv2 | `ipsec up <cfg>`（strongSwan） |
-| L2TP | `xl2tpd-control connect <cfg>` |
-| Tailscale | `tailscale up` |
+| WireGuard | `wg-quick up <名>` |
+| OpenVPN | `openvpn --config <名> --daemon` |
+| IKEv2 | `ipsec up <名>`（strongSwan） |
+| L2TP | `xl2tpd-control connect <名>` |
+| Tailscale | `tailscale up`（認証は事前に済ませておく） |
 
-実機側に各ツール（`wireguard-tools` 等）と polkit/pkexec の許可が必要です。
+root起動のため実機側に各ツールと **polkit/pkexec の許可**が必要です（無人起動の polkit ルール例は
+`docs/DEVICE_CHECKLIST.md`）。
 
 ---
 

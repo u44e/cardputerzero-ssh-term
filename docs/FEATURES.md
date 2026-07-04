@@ -8,19 +8,21 @@
 |------|:--:|
 | **libvterm(MIT)** によるVT100/ANSI完全エミュレーション（カーソル/消去/スクロール領域/挿入削除/alt-screen/DECモード/DA・DSR応答/アプリカーソルキー） | ✅ |
 | **自前 forkpty** によるPTY子プロセス管理（著作権クリーン、launcherコード非流用） | ✅ |
-| **SGRカラー**（8/16/256色・truecolor、色ラン毎ラベル描画、既定は緑/黒＝ネイティブ忠実） | ✅ |
+| **SGRカラー**（8/16/256色・truecolor、**前景＋背景色・反転(reverse)・下線**、色ラン毎ラベル描画、既定は緑/黒＝ネイティブ忠実） | ✅ |
 | 等幅フォント = **Liberation Mono 12px → 45桁×12行**（実機常駐をfreetype読込、unscii_8フォールバック） | ✅ |
 | ブロックカーソル、readerスレッド＋40ms描画タイマ＋dirty差分 | ✅ |
-| 日本語/CJK表示（実機=Alibaba PuHui Ti、emはCJKフォント無くtofu） | ◐ |
+| **スクロールバック**（400行リングバッファ）：**Alt+↑↓=1行 / Alt+←→=1画面** で履歴を遡る（ライブ維持）・入力で最新へ復帰・履歴表示中はヒントバー | ✅ |
+| 日本語/CJK表示：端末フォント(Liberation Mono)に **AlibabaPuHuiTi をfallback** → em/実機とも描画（tofu解消） | ✅ |
 
 ## 接続・セッション
 | 機能 | 状態 |
 |------|:--:|
-| プロトコル選択：**ssh / telnet / shell（ローカル端末）** | ✅ |
-| **接続先プロファイル**（名前/ホスト/ポート/ユーザ/proto/VPN種別/VPN設定/ログ/サイズ） | ✅ |
+| プロトコル選択：**ssh / telnet / shell（ローカル端末）/ serial（USB-シリアルコンソール）** | ✅ |
+| **serial**：`picocom -b <baud> <device>` を実行（プロファイルの Host→デバイス `/dev/ttyUSB0`、Port→ボーレート に流用。User/VPN欄は非表示） | ✅(argv) / ⏳(実機picocom) |
+| **接続先プロファイル**（名前/ホスト/ポート/ユーザ/proto/VPN種別/**VPN接続名**/ログ/サイズ。VPN秘密情報は非保持） | ✅ |
 | 永続化：フラット key=value（`/sdcard/term.conf`、env `TERM_CONF`、初回シード） | ✅ |
 | 一覧（選択→接続）／**編集画面 CRUD**（新規`n`/編集`e`/削除`d`＋確認ダイアログ）／インライン文字入力 | ✅ |
-| セッション終了で一覧へ自動復帰（ウォッチドッグ） | ✅ |
+| **切断・接続失敗レビュー**：最終出力を残し赤 `DISCONNECTED` 表示（ウォッチドッグ検知）→ `Enter`/`ESC`で一覧・`r`で再接続・`Alt+矢印`で履歴 | ✅ |
 | 実SSH/telnet接続（argv生成済、実ホスト未検証） | ⏳ |
 
 ## フォント・表示
@@ -35,7 +37,7 @@
 |------|:--:|
 | フルキー受信（`NO_KBD_STUBS`、単一objグループで **Tab/矢印もハンドラに到達**） | ✅ |
 | キー→PTYバイト変換：印字/Unicode、矢印(CSI)、Enter/BS/ESC/Tab/Home/End/Del | ✅ |
-| ESCはPTYへ素通し（vim等）、SIDEキーで Session Menu | ✅ |
+| ESCはPTYへ素通し（vim等）、SIDEキーで Session Menu、**Alt+矢印でスクロールバック** | ✅ |
 | Ctrl系：emは制御文字一部、実機は `LV_EVENT_KEYBOARD`(key_item)修飾で全対応 | ◐ |
 
 ## 日本語入力（IME）
@@ -51,6 +53,12 @@
 | ログ一覧（mtime降順）＋閲覧（**ANSI除去**・スクロール）・削除 | ✅ |
 | 実行中ログON/OFF（メニュー Toggle log） | ✅ |
 
+## マクロ（クイック送信）
+| 機能 | 状態 |
+|------|:--:|
+| **よく使う1行コマンドを登録→Session Menu「マクロ」から選んで送信**（本文＋Enter で実行） | ✅ |
+| アプリ内で **追加`n`/編集`e`/削除`d`**（名前＋コマンド、最大12件）、`term.conf` にグローバル保存（`mac<i>.name/.text`） | ✅ |
+
 ## ファイル流し込み（file injection）
 任意のテキストファイル（機器設定・スクリプト・コマンド列・メモ等。**設定ファイルに限らない**）を端末へ送出。
 | 機能 | 状態 |
@@ -60,11 +68,12 @@
 | 行ごと **ペース送出**（低速CLI/機器向け） | ✅ |
 | ファイルブラウザ → **送出ダイアログ**（検出エンコーディング表示）→ 送出 | ✅ |
 
-## VPN
+## VPN（OS管理：アプリは接続名だけ持ち、秘密情報は保存しない）
 | 機能 | 状態 |
 |------|:--:|
 | **VPN方式選択（iPhone風）**：none / WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale | ✅(UI) |
-| 種別ごとの起動/停止：`pkexec` で wg-quick / openvpn / strongSwan ipsec / xl2tpd / tailscale | ⏳(実機exec) |
+| プロファイルは **OS側の接続名のみ保持**（wg/ovpn config名・NM/ipsec の connection名）。鍵/PSK/パスワードは**アプリに保存しない**（`/etc/wireguard`・NM 等 OS 側が保持）。旧 term.conf の秘密キーは次回保存で消去 | ✅ |
+| 起動/停止：**NetworkManager があれば `pkexec nmcli connection up/down <名>` に一本化**、無ければ種別ごと wg-quick / openvpn / ipsec / xl2tpd / tailscale へfallback | ⏳(実機exec) |
 | 疎通プローブ（`getifaddrs` で wg/tun/utun 検出） | ✅ |
 | 接続前にVPNゲート → 失敗時「Connect anyway / Cancel」ダイアログ／終了時 down（自分で上げた時のみ） | ✅(UI) |
 
@@ -85,5 +94,5 @@
 - GitHub: `github.com/u44e/cardputerzero-ssh-term`（private、`v0.1.0`）。
 
 ## 残（実機/低優先）
-実機デプロイ＋対話打鍵検証、fcitx5-mozc漢字、VPN実起動、Ctrl全種、接続中オーバーレイ（モック10、未実装）、
-端末SGRの背景色/反転（前景色のみ実装）。詳細は `docs/DEVICE_CHECKLIST.md`。
+実機デプロイ＋対話打鍵検証、fcitx5-mozc漢字、**VPN実起動（実質は polkit ルール1本の配置）**、Ctrl全種、
+接続中オーバーレイ（モック10、未実装）。詳細は `docs/DEVICE_CHECKLIST.md`。
