@@ -1,6 +1,9 @@
 /* vpn.c — VPN bring-up/tear-down + readiness probe.
- * Exec path is device-only (pkexec + wg-quick); the getifaddrs probe runs
- * everywhere. Generic command-based design so any VPN tool can be slotted in. */
+ * OS-managed: the profile only names an OS-side connection; secrets live in the
+ * OS (NetworkManager / /etc/wireguard …), never in the app. Bring-up prefers
+ * `nmcli connection up <name>` when NetworkManager is present (one command for
+ * every VPN type), else falls back to the per-tool command by name. Exec is
+ * device-only (root via pkexec/polkit); the getifaddrs probe runs everywhere. */
 #include "vpn.h"
 
 #include <stdio.h>
@@ -23,8 +26,15 @@ const char *const VPN_TYPES[] = {
 int vpn_type_count(void) { return (int)(sizeof(VPN_TYPES) / sizeof(VPN_TYPES[0])); }
 
 static int  s_we_started = 0;
+static int  s_via_nm     = 0;      /* brought up through NetworkManager? (matches teardown) */
 static char s_type[16] = {0};
 static char s_cfg[64]  = {0};
+
+/* Is NetworkManager's nmcli available? (Raspberry Pi OS Bookworm default stack) */
+static int nm_present(void)
+{
+    return access("/usr/bin/nmcli", X_OK) == 0 || access("/bin/nmcli", X_OK) == 0;
+}
 
 int vpn_is_up(void)
 {
@@ -62,22 +72,26 @@ int vpn_up(const profile_t *p)
     if (!type || !*type || !strcmp(type, "none")) return 0;   /* no VPN */
     if (vpn_is_up()) { s_we_started = 0; return 0; }          /* already up */
 
-    /* Each type uses the fields its editor showed. wg-quick/openvpn take a config;
-     * ikev2/l2tp use a pre-defined connection (Server/User/Pass are stored for the
-     * device to generate ipsec/xl2tpd config — device TODO); tailscale takes a key. */
-    const char *argv[10] = {0};
-    if (!strcmp(type, "wireguard"))
+    /* The app never holds secrets — it only names an OS-side connection. Prefer
+     * NetworkManager (one command for every VPN type); otherwise fall back to the
+     * per-tool bring-up by config/connection name. Tailscale uses its own daemon
+     * state (auth done once out-of-band), so it needs no name. */
+    const char *argv[8] = {0};
+    s_via_nm = 0;
+    if (!strcmp(type, "tailscale"))
+        argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "up";
+    else if (nm_present() && p->vpn[0]) {
+        argv[0] = "pkexec", argv[1] = "nmcli", argv[2] = "connection", argv[3] = "up", argv[4] = p->vpn;
+        s_via_nm = 1;
+    }
+    else if (!strcmp(type, "wireguard"))
         argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "up", argv[3] = p->vpn;
     else if (!strcmp(type, "openvpn"))
         argv[0] = "pkexec", argv[1] = "openvpn", argv[2] = "--config", argv[3] = p->vpn, argv[4] = "--daemon";
     else if (!strcmp(type, "ikev2"))                          /* strongSwan connection */
-        argv[0] = "pkexec", argv[1] = "ipsec", argv[2] = "up", argv[3] = p->vpn[0] ? p->vpn : p->vpn_server;
+        argv[0] = "pkexec", argv[1] = "ipsec", argv[2] = "up", argv[3] = p->vpn;
     else if (!strcmp(type, "l2tp"))                           /* xl2tpd control */
-        argv[0] = "pkexec", argv[1] = "xl2tpd-control", argv[2] = "connect", argv[3] = p->vpn[0] ? p->vpn : p->vpn_server;
-    else if (!strcmp(type, "tailscale")) {
-        argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "up";
-        if (p->vpn_secret[0]) argv[3] = "--authkey", argv[4] = p->vpn_secret;
-    }
+        argv[0] = "pkexec", argv[1] = "xl2tpd-control", argv[2] = "connect", argv[3] = p->vpn;
     else
         return -1;
 
@@ -92,7 +106,9 @@ void vpn_down(void)
 {
     if (!s_we_started || !s_type[0]) return;
     const char *argv[8] = {0};
-    if (!strcmp(s_type, "wireguard"))
+    if (s_via_nm)
+        argv[0] = "pkexec", argv[1] = "nmcli", argv[2] = "connection", argv[3] = "down", argv[4] = s_cfg;
+    else if (!strcmp(s_type, "wireguard"))
         argv[0] = "pkexec", argv[1] = "wg-quick", argv[2] = "down", argv[3] = s_cfg;
     else if (!strcmp(s_type, "openvpn"))
         argv[0] = "pkexec", argv[1] = "pkill", argv[2] = "-f", argv[3] = "openvpn";
@@ -103,5 +119,5 @@ void vpn_down(void)
     else if (!strcmp(s_type, "tailscale"))
         argv[0] = "pkexec", argv[1] = "tailscale", argv[2] = "down";
     if (argv[0]) run(argv);
-    s_we_started = 0; s_type[0] = 0; s_cfg[0] = 0;
+    s_we_started = 0; s_type[0] = 0; s_cfg[0] = 0; s_via_nm = 0;
 }
