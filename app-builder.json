@@ -1,13 +1,40 @@
 {
+  "name": "NetTerm",
+  "package": "ssh_term",
   "package_name": "ssh_term",
   "version": "0.2.1",
   "app_name": "NetTerm",
   "bin_name": "ssh_term",
   "description": "SSH/telnet/serial/shell terminal for M5CardputerZero — profiles, OS-managed VPN, session logs, file injection (charset auto-detect), quick-send macros, Japanese input, font-size, EN/JA UI",
+  "maintainer": "u44e <u44e@mac.com>",
+  "homepage": "https://github.com/u44e/cardputerzero-ssh-term",
   "runtime": "lvgl-dlopen",
   "lvgl_version": "9.5",
   "icon": "icon.png",
   "entry": "app_main",
   "event_entry": "app_event",
-  "caps": ["keyboard", "network", "pty", "process", "filesystem"]
+  "caps": ["keyboard", "network", "pty", "process", "filesystem"],
+  "store": {
+    "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection.",
+    "categories": ["Utilities", "Development", "Communication"],
+    "license": "MIT",
+    "source_repo": "https://github.com/u44e/cardputerzero-ssh-term",
+    "icon": "share/images/ssh_term.png",
+    "screenshots": [
+      "store/screenshots/01-sessions-320x170.png",
+      "store/screenshots/02-editor-320x170.png",
+      "store/screenshots/03-terminal-320x170.png",
+      "store/screenshots/04-menu-320x170.png",
+      "store/screenshots/05-macros-320x170.png"
+    ],
+    "permissions": {
+      "keyboard_input": true,
+      "network": true,
+      "filesystem": "full",
+      "external_hardware": true,
+      "audio_output": false,
+      "microphone": false,
+      "background_service": false
+    }
+  }
 }

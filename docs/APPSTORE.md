@@ -1,68 +1,63 @@
 # CardputerZero AppStore 提出メモ / submission notes
 
-NetTerm（`ssh_term`）を CardputerZero AppStore へ出すための準備状況と手順。
-公式ガイド: <https://cardputerzero.github.io/#/documents/app-submission-guide>
-（`developer-docs/dev/publish.md` / `packaging.md`）
+NetTerm（`ssh_term`）を公式 CardputerZero AppStore へ出す場合の**現状と要件**。
+公式ドキュメント: <https://cardputerzero.github.io/#/documents>
+（`developer-docs/dev/{publish,packaging,applauncher,lvgl,desktop-spec}.md`）
 
-## 提出フロー（公式）
+## ⚠️ 重要：モデルが合っていない（要移植）
+公式 AppStore のアプリは **fork/exec される標準バイナリ**である。
+- `APPLauncher` はアプリ選択時に**子プロセスを fork/exec** し、子が **framebuffer を占有**する
+  （`applauncher.md`：hal_process = fork/exec、"Child app has exclusive framebuffer access"）。
+- LVGL アプリは **`main()` を持ち**、`lv_linux_fbdev_create()`＋`lv_evdev_create()` で
+  `/dev/fb0`・evdev を**自前で**開く（`lvgl.md`）。`.desktop` は `Exec=<絶対パスのバイナリ>`（`desktop-spec.md`）。
+- 実在アプリで確認：2048 の SConstruct target は `Program`（`M5CardputerZero-2048`）、Calendar も
+  `runtime: legacy-deb-only` の標準バイナリ。**dlopen アプリは存在しない。**
+
+一方 **NetTerm は lvgl-dlopen（`libssh_term.so`、`app_main`/`app_event`/`ui_init` を
+ホスト launcher が dlopen）**。`app-builder.json` の `runtime: "lvgl-dlopen"` がそれ。
+→ **そのままでは公式 AppStore の形式ではない。** 提出には標準バイナリへの**移植**が要る。
+
+### 移植でやること（概算）
+1. `main()` を新設し、`lv_init()` → `lv_linux_fbdev_create()`（`APPLAUNCH_LINUX_FBDEV_DEVICE`）
+   ＋ `lv_evdev_create()` で表示/入力を自前化。
+2. 現在の `app_main(parent)` を `main()` から呼ぶ（`parent = lv_screen_active()`）。
+   `app_event(CZ_EV_*)` 相当は、SIGTERM（ESC 長押しで launcher が送る）でクリーン終了に置換
+   （HOMEボタン/終了時の PTY/ログ/VPN 後始末を SIGTERM ハンドラへ）。
+3. ビルドを CMake（FetchContent で LVGL 9.x）＋ `packaging/{meta.env,build.sh,stage.sh}` に対応、
+   `bin_name` を実行バイナリ（例 `M5CardputerZero-NetTerm`）に。
+4. Docker: `docker run --rm --network=host ... ghcr.io/cardputerzero/build-env:latest scripts/pack-deb.sh <app>`。
+
+> 現行の emulator/czpi（dlopen）ワークフローは**別 launcher 向け**。公式 AppStore とは別系統。
+
+## 提出フロー（移植後）
 ```
-czdev login → .deb をビルド → czdev publish --deb <file>
-   → CardputerZero/packages へ PR 自動作成 → CI 検証 → メンテナがレビュー → マージで公開
+czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
+   → CardputerZero/packages へ PR 自動作成 → CI 検証 → レビュー → マージで公開
 ```
-`czdev`（[CardputerZero-AppBuilder](https://github.com/CardputerZero/CardputerZero-AppBuilder)）が fork/branch/upload/PR を自動化する。**手動 git 操作は不要。**
-承認後、4文字の **share code** が付与され、ユーザーはホーム画面で `S` → コード入力で導入できる。
+承認後、4文字 **share code**（ホーム画面 `S`→コード）。`czdev login`/`czdev publish` は
+**本人の GitHub OAuth が必要**なのでアシスタントでは実行しない。
 
-## モデルの整合性（確認済み）
-NetTerm は lvgl-dlopen（`libssh_term.so`、`cz_add_lvgl_app`）だが、AppBuilder の
-`scripts/pack_deb.py` が `.so` + フォント + 画像 + `.desktop` + 権限を APPLaunch 配下へ配置して
-`.deb` 化する。**標準 `main()` バイナリへ作り替える必要はない。**
+## メタデータ（形式は確認済み・準備済み）
+公式は**別ファイル `meta.json` ではなく `app-builder.json` の `"store"` ブロック**（2048 で確認）。
+本リポジトリの `app-builder.json` に追加済み：`store{summary,categories,license,source_repo,icon,screenshots,permissions}`。
+- カテゴリは公式一覧（Games/Utilities/Communication/AI/Media/Education/Development/System）から採用。
+- `permissions`：`keyboard_input`/`network`/`filesystem:"full"`/`external_hardware`。
 
-## 本リポジトリに準備済み
-| 項目 | 実体 | 要件 |
+## 形式に依存せず用意済みのアセット
+| 準備物 | 実体 | 要件 |
 |---|---|---|
-| ストア用メタデータ | `meta.json` | title/summary/description/categories/license/source_repo/icon/screenshots/permissions |
-| アイコン | `store/ssh_term.png` | **100×100 PNG**（`icon.png` 128×128 を縮小） |
-| スクショ ×5 | `store/screenshots/0[1-5]-*-320x170.png` | **320×170 PNG**（一覧/編集/端末/メニュー/マクロ） |
-| ライセンス | MIT（README のライセンス方針） | 原作／適切なライセンス |
-| 320×170 動作 | ✅ | 必須 |
-| パッケージサイズ | `.so` 数百 KB ≪ 100 MB | < 100 MB |
-
-## ビルド（`.deb`）
-```sh
-# AppBuilder のコンテナで pack（公式フロー）
-cd ~/Projects/CardputerZero-AppBuilder
-docker run --rm -v $(pwd):/src -w /src \
-  ghcr.io/cardputerzero/build-env:latest \
-  scripts/pack-deb.sh <this-app-path>
-#  -> dist/ssh_term_0.2.1-m5stack1_arm64.deb
-```
-`app-builder.json`（`package_name=ssh_term` / `app_name=NetTerm` / `runtime=lvgl-dlopen` /
-`caps=[keyboard,network,pty,process,filesystem]`）がパッケージ名・表示名・権限の元になる。
-
-## 公開（ユーザーが実行）
-> `czdev login`（GitHub OAuth）と `czdev publish` は**本人の GitHub 認証が必要**なので、こちら（アシスタント）では実行しない。
-```sh
-czdev login
-czdev publish --deb dist/ssh_term_0.2.1-m5stack1_arm64.deb
-```
+| アイコン | `share/images/ssh_term.png` | **100×100 PNG**（`icon.png` 128×128 を縮小） |
+| スクショ ×5 | `store/screenshots/0[1-5]-*-320x170.png` | **320×170 PNG** |
 
 ## レビュー前に判断が要る点
-1. **source_repo が private**（`github.com/u44e/cardputerzero-ssh-term`）。
-   AppStore の掲載は source_repo を指す。**公開**するか **CardputerZero org へ移管**するかを決める
-   （既存アプリは `github.com/CardputerZero/<App>`）。private のままだと審査で弾かれる可能性。
-2. **権限の妥当性**（審査で説明できるように）：
-   - `network` … ssh/telnet、VPN。
-   - `filesystem: full` … `/sdcard/term.conf`・`/sdcard/logs`、流し込み元/SSH鍵など任意ファイル読取。
-   - `external_hardware` … USB-シリアル（`/dev/ttyUSB*`）。
-   - **VPN は `pkexec` で特権ツール（wg-quick/nmcli 等）を起動**する。ガイドの
-     「system files を APPLaunch 外で変更しない」に照らし、審査コメントで用途を明記。
-     VPN秘密情報はアプリに保存せず OS 側が保持（`docs/FEATURES.md` 参照）。
-3. **ESC の扱い**：端末中は ESC を PTY へ素通し（vim 等）。アプリ終了は HOME ボタン
-   （`CZ_EV_EXIT_REQUEST` で PTY/ログ/VPN を後始末）。ガイドの「ESC で綺麗に終了」は
-   HOME 経由の後始末で満たすが、必要なら審査コメントで補足。
-4. **カテゴリ**：ガイドの一覧（Games/Utilities/Communication/AI/Media/Education/Development/System）から
-   Utilities/Development/Communication を採用。
+1. **移植の要否**：公式 AppStore へ出すなら上記の標準バイナリ移植が前提。dlopen のまま使う別 launcher 環境が
+   本命なら、公式 AppStore 提出自体が不要かもしれない（要方針決定）。
+2. **source_repo が private**（`u44e/...`）。掲載は source_repo を指す。**公開** or **CardputerZero org へ移管**を検討。
+3. **VPN は `pkexec` で特権ツール（wg-quick/nmcli 等）を起動**。ガイドの「APPLaunch 外の system files を
+   変更しない」に照らし審査コメントで用途明記（秘密情報はアプリ非保存＝OS側）。
+4. **終了**：ESC は端末中 PTY へ素通し。アプリ終了は launcher の SIGTERM で後始末（移植時に実装）。
 
-## meta.json フィールド（採用値）
-`docs/FEATURES.md` の機能一覧が description の根拠。categories/permissions は上記の通り。
-更新時は `app-builder.json` の `version` と歩調を合わせ、`czdev publish` で版上げ PR を作る。
+## 訂正履歴
+初版で「AppBuilder の `pack_deb.py` が dlopen `.so` をそのまま .deb 化＝作り替え不要」と記したのは**誤り**。
+その `pack_deb.py` は旧世代の別スクリプトで、生成 `.desktop` は `Exec=バイナリ`＋systemd 起動＝**実行バイナリ前提**。
+公式 AppStore は fork/exec 標準バイナリのため、上記のとおり**移植が必要**。
