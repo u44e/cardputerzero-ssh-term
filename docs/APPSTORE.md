@@ -63,7 +63,7 @@ czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
   **Developer Tools**/**Network**/Communication/Hardware/Education/Utilities/System/AI/Experimental）から
   `["Network","Developer Tools","Utilities","System"]`。
 - `author.github`=`u44e`、`license`=MIT、`commercial_use`=true。
-- **`source.openness`**：現在 **`closed-source`**（repo が private のため）。公開すれば `open-source`。**要判断（下記）**。
+- **`source.openness`**：**`open-source`**（提出前に repo を public 化する方針。source/homepage URL が解決し審査で有利）。
 - `permissions`（全次元を明示）＋ `privacy`（収集なし・端末外送信は接続先のみ・ローカル保存・第三者共有なし）＋
   `external_hardware`(USB-serial)＋`service`=false＋`hdmi_output`=false＋`risk_flags`（pkexec VPN / USB-serial / ssh egress）。
 - `download.{package,url,md5}`：**url/md5 は publish 時に確定**（`.deb` の MD5）。
@@ -112,7 +112,7 @@ czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
   `.deb` は `packages/validate-pr.yml` の機械的チェックを全通過。
 - **未検証（実機依存）**：evdev の Fn/記号レイヤ・SIDE keycode、fbdev 表示は**標準 Linux キーコードで実装済みだが
   実機の keymap 確定待ち**。320×170 表示・打鍵・終了UXは実機到着後に確定。
-- **ソース**：private（`closed-source`）。`hardware_verified: false` を `review` に明示。
+- **ソース**：public（`open-source`, MIT）。`hardware_verified: false` を `review` に明示。
 
 ## 形式に依存せず用意済みのアセット
 | 準備物 | 実体 | 要件 |

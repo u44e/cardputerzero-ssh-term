@@ -27,7 +27,7 @@
     "author": { "github": "u44e", "display_name": "u44e", "website": "https://github.com/u44e" },
     "license": "MIT",
     "commercial_use": true,
-    "source": { "openness": "closed-source", "repository": "https://github.com/u44e/cardputerzero-ssh-term" },
+    "source": { "openness": "open-source", "repository": "https://github.com/u44e/cardputerzero-ssh-term" },
     "source_repo": "https://github.com/u44e/cardputerzero-ssh-term",
     "icon": "share/images/netterm.png",
     "screenshots": [
@@ -69,7 +69,7 @@
     "review": {
       "status": "pending",
       "hardware_verified": false,
-      "notes": "Built and verified in an arm64 Debian Bookworm container: the app runs, seeds its config and exits cleanly on SIGTERM, and the .deb passes the packages/ validate-pr.yml checks. NOT yet verified on physical M5CardputerZero hardware — the evdev keyboard's Fn/symbol layer and SIDE keycode plus the fbdev display path are implemented against standard Linux keycodes and await on-device keymap confirmation. Disclosed up front per the honest-metadata policy. Source repository is private (closed-source)."
+      "notes": "Built and verified in an arm64 Debian Bookworm container: the app runs, seeds its config and exits cleanly on SIGTERM, and the .deb passes the packages/ validate-pr.yml checks. NOT yet verified on physical M5CardputerZero hardware — the evdev keyboard's Fn/symbol layer and SIDE keycode plus the fbdev display path are implemented against standard Linux keycodes and await on-device keymap confirmation. Disclosed up front per the honest-metadata policy. Source is public (open-source, MIT)."
     }
   }
 }
