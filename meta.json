@@ -1,0 +1,31 @@
+{
+  "title": "NetTerm",
+  "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection.",
+  "description": "A pocket terminal for network gear on the M5CardputerZero. Connect over SSH, telnet, USB-serial console (picocom) or a local shell. Connection profiles with OS-managed VPN (WireGuard / OpenVPN / IKEv2 / L2TP / Tailscale), per-profile SSH identity file and color theme. Session logging with in-log search and a size cap; quick-send macros; file injection with charset auto-detect and wait-for-prompt pacing; scrollback with search and line copy/paste; full SGR colour (bg / reverse / underline / bold); F-keys and Meta; and a switchable English / Japanese UI. Serial consoles get format presets (8N1 / 7E1 / 7O1 / 8N2) and Send BREAK for router password recovery.",
+  "locales": {
+    "ja": {
+      "title": "NetTerm",
+      "summary": "SSH / telnet / USB-シリアル / シェル端末。プロファイル・VPN・マクロ・ファイル流し込み対応。"
+    }
+  },
+  "categories": ["Utilities", "Development", "Communication"],
+  "license": "MIT",
+  "source_repo": "https://github.com/u44e/cardputerzero-ssh-term",
+  "icon": "share/images/ssh_term.png",
+  "screenshots": [
+    "store/screenshots/01-sessions-320x170.png",
+    "store/screenshots/02-editor-320x170.png",
+    "store/screenshots/03-terminal-320x170.png",
+    "store/screenshots/04-menu-320x170.png",
+    "store/screenshots/05-macros-320x170.png"
+  ],
+  "permissions": {
+    "keyboard_input": true,
+    "network": true,
+    "filesystem": "full",
+    "external_hardware": true,
+    "microphone": false,
+    "audio_output": false,
+    "background_service": false
+  }
+}

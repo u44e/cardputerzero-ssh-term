@@ -44,6 +44,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 - [機能一覧 (Feature list)](docs/FEATURES.md)
 - [画面仕様 / mockups](docs/SCREENS.md)
 - [実機ブリングアップ手順 (device checklist)](docs/DEVICE_CHECKLIST.md)
+- [AppStore 提出メモ (submission notes)](docs/APPSTORE.md) — `meta.json` / `store/` assets
 
 ## Build & run
 
