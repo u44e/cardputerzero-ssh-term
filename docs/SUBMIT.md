@@ -1,65 +1,74 @@
-# 公式 AppStore 提出手順（コピペ用）
+# 公式 AppStore 提出手順（コピペ用・検証済み）
 
 方針：**リポジトリを公開 → 公式 `czdev` で提出**。`czdev login` は本人の GitHub OAuth が要るので
 以下は**あなたの端末で実行**する。`.deb` とメタデータ（`app-builder.json` の `store` ブロック）は準備済み。
 
 - 出力物: `port/dist/netterm_0.2.2-m5stack1_arm64.deb`（sha256 `5abb43ffab4696c485b67b34251fe648baa6d3311fddd05a29e816f2bff1d52e` / 474 KB）
-- czdev の検証（`.desktop` あり・Maintainer=`u44e@users.noreply.github.com`・サイズ<100MB）は充足済み
+- czdev の検証（`.desktop` あり・Maintainer=`u44e@users.noreply.github.com`・パッケージ名 `netterm` 有効・サイズ<100MB）は充足済み
+
+> **czdev の実体**（重要）：公式 doc のリンク `CardputerZero/CardputerZero-AppBuilder` は**古くて 404**。
+> 正しくは **`m5stack/CardputerZero-AppBuilder`**（public）。**提出系コマンドは Python 製で Rust 不要**
+> （`scripts/czdev/` パッケージ。要 Python3・git・git-lfs・dpkg-deb）。
 
 ---
 
-## 0. リポジトリを公開（source URL を解決させる＝審査で有利）
+## 0. リポジトリを公開（source/homepage URL を解決＝審査で有利）
 ```bash
 gh repo edit u44e/cardputerzero-ssh-term --visibility public --accept-visibility-change-consequences
 ```
-> メタデータは既に `source.openness=open-source` で push 済み。公開で homepage/source_repo の 404 が解消。
+> メタデータは既に `source.openness=open-source` で push 済み。
 
-## 1. `.deb` をビルド（未ビルド or 作り直す場合のみ。Docker 必要）
+## 1. `.deb` をビルド（未ビルド or 作り直す場合のみ。要 Docker）
 ```bash
 cd ~/Projects/cardputerzero-ssh-term
 ./port/build.sh          # -> port/dist/netterm_0.2.2-m5stack1_arm64.deb
 ```
 
-## 2. `czdev` を用意（初回のみ。要 Rust/cargo・git-lfs）
+## 2. czdev（Python 製）と依存を用意（初回のみ・Rust 不要）
 ```bash
-# git-lfs（未導入なら）
-brew install git-lfs && git lfs install
+# 依存（mac に dpkg-deb が無いので dpkg を入れる）
+brew install git-lfs dpkg && git lfs install
 
-# czdev を CardputerZero-AppBuilder からビルド
-git clone https://github.com/CardputerZero/CardputerZero-AppBuilder ~/CardputerZero-AppBuilder
-cd ~/CardputerZero-AppBuilder
-cargo build --release -p czdev
-# PATH を通す（または ~/CardputerZero-AppBuilder/target/release/czdev を直接使う）
-export PATH="$HOME/CardputerZero-AppBuilder/target/release:$PATH"
-czdev doctor            # 環境チェック（任意）
+# AppBuilder を取得（提出だけなら submodule 不要。エミュレータも使うなら --recursive）
+git clone https://github.com/m5stack/CardputerZero-AppBuilder ~/CardputerZero-AppBuilder
+
+# 動作確認（--help が出れば OK）
+PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev --help
 ```
 
 ## 3. ログイン（初回のみ・GitHub OAuth デバイスフロー）
 ```bash
-czdev login             # ブラウザでコード認可 → token を ~/.config/czdev/token に保存
+PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev login
+# ブラウザでコード認可 → token は ~/.config/czdev/token に保存
 ```
 
-## 4. 提出（fork/branch/upload/PR を czdev が自動化）
+## 4. 提出（★必ず「自分のアプリ dir」で実行）
+`czdev` は **cwd の `app-builder.json`** を読んで store メタ／アイコン／スクショを解決する。
+必ず `~/Projects/cardputerzero-ssh-term` で実行すること。
 ```bash
-cd ~/Projects/cardputerzero-ssh-term       # app-builder.json のある場所で実行
-czdev publish --deb port/dist/netterm_0.2.2-m5stack1_arm64.deb
+cd ~/Projects/cardputerzero-ssh-term
+PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev publish \
+  --deb port/dist/netterm_0.2.2-m5stack1_arm64.deb
 # 完了時に PR URL が表示される（CardputerZero/packages 宛て）
 ```
-`czdev publish` は自動で: `.deb` 検証 → `CardputerZero/packages` を fork → `publish/netterm-…` ブランチ作成 →
-`.deb`＋`meta.json`（= `store` ブロック由来）＋アイコン＋スクショをアップロード → PR 作成。
+`czdev publish` が自動で: `.deb` 検証（.desktop / email / パッケージ名 / サイズ）→ `CardputerZero/packages` を
+**あなたの fork** に fork → fork の Release に `.deb` をアップロード（git には binary を入れない）→
+`meta.json`＋アイコン＋スクショ＋`<pkg>_<ver>_<arch>.deb.release.json`（fork Release URL＋sha256）を commit → PR 作成。
 
 ## 5. 提出後
-- CI（`validate-pr.yml`）が `.deb` 構造を検証 → メンテナがレビュー → マージで公開。
+- CI（`validate-pr.yml`）が `.deb` 構造を検証 → メンテナがレビュー → マージで `apt-pool` に昇格し公開。
 - 承認後、**4文字 share code**（ホーム画面 `S`→コード）でユーザーが導入可能に。
-- **審査コメントに明記される開示**（`app-builder.json` の `review.notes` に記載済み）:
+- **審査コメントに出る開示**（`app-builder.json` の `review.notes` に記載済み）：
   「arm64 コンテナでビルド・起動検証済み／**実機 M5CardputerZero では未検証**（evdev の Fn/記号レイヤ・
   SIDE keycode・fbdev 表示は実機 keymap 待ち）」。実機入手後に keymap を確定し再 publish で更新。
 
 ---
 
 ## つまずいたら
-- **`czdev` が無い/ビルド不可** → CardputerZero-AppBuilder の README を参照（`cargo build --release -p czdev`）。
-- **カテゴリで弾かれた** → `app-builder.json` の `store.categories` を `["Utilities","System"]` に落とす
-  （`Network`/`Developer Tools` は新レジストリ分類。旧バリデータだと未対応の可能性）。
+- **`No module named czdev`** → `PYTHONPATH` に `~/CardputerZero-AppBuilder/scripts` を必ず付ける（`-m czdev` は package 実行）。
+- **`app-builder.json not found`** → `cd ~/Projects/cardputerzero-ssh-term` で（＝cwd をアプリ dir に）実行しているか確認。
+- **`dpkg-deb: command not found`** → `brew install dpkg`。
 - **Maintainer email 不一致** → `.deb` は `u44e@users.noreply.github.com`。PR 作成者（`u44e`）と一致するので通常OK。
-- **バージョン更新** → `app-builder.json`＋`port/CMakeLists.txt` の版を上げ、`./port/build.sh` 後に再 `czdev publish`。
+- **カテゴリで弾かれた** → `store.categories` を `["Utilities","System"]` に落とす（`Network`/`Developer Tools` は新レジストリ分類）。
+- **バージョン更新** → `app-builder.json`＋`port/CMakeLists.txt` の版を上げ、`./port/build.sh` 後に再 `publish`。
+  `python3 -m czdev bump --deb <file>` で次パッチ版を確認できる。
