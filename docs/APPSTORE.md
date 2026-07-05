@@ -106,6 +106,14 @@ czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
 **結論**：提出に不可欠なのは *arm64 `.deb` のビルド*（移植②③④）。実機は「機械的必須」ではないが「審査を通すため実質推奨」。
 順序：移植②③④ →（可能なら実機/エミュ検証）→ `czdev publish`。
 
+## 提出時の開示（審査コメント／`review.notes` に明記）
+**実機未検証を正直に開示して提出する方針**（透明性優先）。提出PR本文と `store.review` に以下を記載：
+- **検証済み**：arm64 Debian Bookworm コンテナでビルド＋起動（config シード・SIGTERM クリーン終了）、
+  `.deb` は `packages/validate-pr.yml` の機械的チェックを全通過。
+- **未検証（実機依存）**：evdev の Fn/記号レイヤ・SIDE keycode、fbdev 表示は**標準 Linux キーコードで実装済みだが
+  実機の keymap 確定待ち**。320×170 表示・打鍵・終了UXは実機到着後に確定。
+- **ソース**：private（`closed-source`）。`hardware_verified: false` を `review` に明示。
+
 ## 形式に依存せず用意済みのアセット
 | 準備物 | 実体 | 要件 |
 |---|---|---|

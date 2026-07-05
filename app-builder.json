@@ -66,6 +66,10 @@
       "USB-serial external hardware access (/dev/ttyUSB*)",
       "arbitrary network egress as an ssh/telnet client"
     ],
-    "review": { "status": "pending" }
+    "review": {
+      "status": "pending",
+      "hardware_verified": false,
+      "notes": "Built and verified in an arm64 Debian Bookworm container: the app runs, seeds its config and exits cleanly on SIGTERM, and the .deb passes the packages/ validate-pr.yml checks. NOT yet verified on physical M5CardputerZero hardware — the evdev keyboard's Fn/symbol layer and SIDE keycode plus the fbdev display path are implemented against standard Linux keycodes and await on-device keymap confirmation. Disclosed up front per the honest-metadata policy. Source repository is private (closed-source)."
+    }
   }
 }
