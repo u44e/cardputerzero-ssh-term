@@ -51,13 +51,13 @@ int main(void)
     lv_display_t *disp = lv_linux_fbdev_create();
     const char *fb = getenv("LV_LINUX_FBDEV_DEVICE");
     lv_linux_fbdev_set_file(disp, fb && *fb ? fb : "/dev/fb1");
+    /* Our evdev layer re-applies the Ctrl/Alt/Fn/F-key/Meta tags the app expects
+     * (plain lv_evdev would drop them). Base+shift is US-ASCII; the CardputerZero
+     * Fn/symbol layer + SIDE keycode still need the device keymap (evdev_kbd.c). */
+    extern lv_indev_t *evdev_kbd_create(const char *dev);
     const char *kbd = getenv("APP_KEY_INPUT_DEVICE");
-    lv_indev_t *in = lv_evdev_create(LV_INDEV_TYPE_KEYPAD, kbd && *kbd ? kbd : "/dev/input/event0");
+    lv_indev_t *in = evdev_kbd_create(kbd && *kbd ? kbd : "/dev/input/event0");
     (void)in;
-    /* TODO(device): the app expects Ctrl/Alt/Fn/F-key/Meta tags (0x40/0x20/0x1C
-     * bits) from the host keyboard driver. lv_evdev delivers plain LVGL keys, so
-     * a modifier-aware evdev filter must re-apply those tags — needs the
-     * CardputerZero keymap (Fn layer, SIDE key). See docs/APPSTORE.md phase 3. */
 #else
     static uint8_t buf[LCD_W * LCD_H * 2];          /* RGB565 */
     lv_display_t *disp = lv_display_create(LCD_W, LCD_H);

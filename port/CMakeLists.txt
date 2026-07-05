@@ -39,6 +39,7 @@ target_compile_definitions(ssh_term PRIVATE
 target_link_libraries(ssh_term PRIVATE lvgl ${VTERM_LIBRARIES} ${FREETYPE_LIBRARIES} pthread m)
 if(PORT_FBDEV)
     target_compile_definitions(ssh_term PRIVATE PORT_FBDEV)
+    target_sources(ssh_term PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/evdev_kbd.c")
 endif()
 
 # ---- install layout: /usr/share/APPLaunch (Exec=bin/ssh_term is relative) ----
