@@ -68,7 +68,30 @@ polkit.addRule(function(action, subject) {
 - NM を使わず `wg-quick`/`ipsec` を直接叩く構成では、対象コマンド用に pkexec action + sudoers/polkit を別途用意する
   （例: `/etc/sudoers.d` で `pi ALL=(root) NOPASSWD: /usr/bin/wg-quick` ＋ 起動側を sudo に変更）。
 
+## 5. 公式 AppStore 移植（実機到着後にやること）
+`port/` の arm64 `.deb` は実機なしでビルド済み（`./port/build.sh`）。残るは実機依存の keymap 確定と検証。詳細は `docs/APPSTORE.md`。
+
+- [ ] **keymap 採取** — 実機で `evtest`（または `cat /dev/input/event*` + `libinput debug-events`）を実行し、
+      各物理キー（英字/数字/記号、`fn`/`ctrl`/`alt`/`Aa(shift)`、矢印=`F▲ Z◀ X▼ C▶`、**SIDEボタン**）の
+      **evdev keycode** と、キーボードの event デバイス番号（`/dev/input/eventN`）を記録。
+- [ ] **`port/evdev_kbd.c` の確定** — 採取した keycode で:
+      (a) **Fn/記号レイヤ**の配列を `KMAP` に反映（US と異なる。例 `Q~ W\` E+ R- …`）。
+      (b) **SIDEキー** の keycode を `-DAPP_SIDE_KEYCODE=<n>` で指定（暫定 `KEY_MENU`）。
+      (c) 矢印が Fn 合成なら Fn 修飾の扱いを追加。
+- [ ] **framebuffer デバイス** — 小型LCDが `/dev/fb0` か `/dev/fb1` か確認。`LV_LINUX_FBDEV_DEVICE` を
+      launcher が注入するか、`.desktop` をラッパー化して設定（`docs/APPSTORE.md` 参照）。
+- [ ] **実機 install→launch→exit→uninstall**（公式 acceptance）:
+      `sudo apt install --no-install-recommends ./ssh_term_0.2.2-m5stack1_arm64.deb` →
+      APPLaunch にアイコン表示 → 起動 → 320×170 で表示崩れ無し → 打鍵（Ctrl/Alt/Fn/矢印/日本語）→
+      **短ESC=戻る / 長ESC・Home=終了**でクリーンに launcher へ復帰 → `sudo apt remove ssh_term` でエントリ消滅。
+- [ ] **フォント** — `/usr/share/APPLaunch/share/font/` に Liberation Mono + AlibabaPuHuiTi が常駐し、
+      端末・日本語が tofu にならないこと（無ければ同梱 or 依存追加を検討）。
+- [ ] **公開判断** — `source.openness`（private→公開 or CardputerZero org 移管。審査で有利）。
+- [ ] **提出** — `czdev login` → `czdev publish --deb port/dist/ssh_term_0.2.2-m5stack1_arm64.deb`
+      （Maintainer email = 自分の GitHub。`.deb` は CI 関門を満たす構造）。
+
 ## 参考
+- AppStore 移植・提出: `docs/APPSTORE.md`（フェーズ・レジストリ・ポリシー準拠）
 - 実装プラン: `~/.claude/plans/cardputerzero-vpn-delightful-adleman.md`
 - 画面仕様/モック: `docs/SCREENS.md` / `docs/mockups/`
 - 全体: `README.md`
