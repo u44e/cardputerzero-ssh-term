@@ -6,7 +6,7 @@
   "app_name": "NetTerm",
   "bin_name": "ssh_term",
   "description": "SSH/telnet/serial/shell terminal for M5CardputerZero — profiles, OS-managed VPN, session logs, file injection (charset auto-detect), quick-send macros, Japanese input, font-size, EN/JA UI",
-  "maintainer": "u44e <u44e@mac.com>",
+  "maintainer": "u44e <u44e@users.noreply.github.com>",
   "homepage": "https://github.com/u44e/cardputerzero-ssh-term",
   "runtime": "lvgl-dlopen",
   "lvgl_version": "9.5",
@@ -29,7 +29,7 @@
     "commercial_use": true,
     "source": { "openness": "closed-source", "repository": "https://github.com/u44e/cardputerzero-ssh-term" },
     "source_repo": "https://github.com/u44e/cardputerzero-ssh-term",
-    "icon": "share/images/ssh_term.png",
+    "icon": "share/images/netterm.png",
     "screenshots": [
       "store/screenshots/01-sessions-320x170.png",
       "store/screenshots/02-editor-320x170.png",
@@ -37,7 +37,7 @@
       "store/screenshots/04-menu-320x170.png",
       "store/screenshots/05-macros-320x170.png"
     ],
-    "download": { "package": "ssh_term", "url": "", "md5": "" },
+    "download": { "package": "netterm", "url": "", "md5": "" },
     "external_hardware": true,
     "service": false,
     "hdmi_output": false,

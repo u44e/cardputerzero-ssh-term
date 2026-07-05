@@ -6,8 +6,9 @@ connection profiles, OS-managed VPN, session logging, file injection (any text,
 charset auto-detect), quick-send macros, Japanese input (OS IME), and a
 switchable EN/JA UI.
 
-> Display name **NetTerm** (SSH is just one of four transports); the package /
-> binary id stays `ssh_term`, so all build & deploy commands are unchanged.
+> Display name **NetTerm**. The dlopen build keeps the id `ssh_term` (`libssh_term.so`,
+> czpi deploy unchanged); the official-AppStore Debian package is `netterm` (a valid
+> Debian name — underscores aren't allowed).
 
 The terminal core is a clean reimplementation — **libvterm (MIT) + a self-written
 `forkpty` wrapper** — so no third-party launcher code is copied. Fonts at runtime
@@ -70,7 +71,7 @@ ports the same app code to a `main()` that owns the display+input (`lv_linux_fbd
 + `lv_evdev`) and packages an arm64 `.deb`. Builds in an arm64 Debian container
 (native on Apple Silicon) — no device or cross-sysroot needed:
 ```sh
-./port/build.sh          # -> port/dist/ssh_term_<ver>-m5stack1_arm64.deb  (needs docker)
+./port/build.sh          # -> port/dist/netterm_<ver>-m5stack1_arm64.deb  (needs docker)
 ```
 Remaining functional gap is device-only (evdev keyboard modifier tagging). See
 [docs/APPSTORE.md](docs/APPSTORE.md) for the port phases, registry metadata, and
@@ -112,7 +113,7 @@ CMakeLists.txt / build-emu.sh   dlopen .so for the czpi/emulator launcher (deskt
 port/            standalone arm64 binary + .deb for the official AppStore (fbdev/evdev)
 
 # AppStore assets (referenced by app-builder.json "store")
-share/images/ssh_term.png       100x100 icon
+share/images/netterm.png       100x100 icon
 store/screenshots/*-320x170.png store screenshots
 docs/APPSTORE.md                submission port, metadata, policy compliance
 
