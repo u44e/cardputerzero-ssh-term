@@ -13,21 +13,45 @@
   "icon": "icon.png",
   "entry": "app_main",
   "event_entry": "app_event",
-  "caps": ["keyboard", "network", "pty", "process", "filesystem"],
+  "caps": [
+    "keyboard",
+    "network",
+    "pty",
+    "process",
+    "filesystem"
+  ],
   "store": {
     "uuid": "76048bc8-5565-4872-9855-51ffba65f160",
     "title": "NetTerm",
     "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection.",
     "description": "A pocket terminal for network gear: SSH, telnet, USB-serial console (picocom) and local shell. Connection profiles with OS-managed VPN, per-profile SSH key and color theme, session logging with search, quick-send macros, charset-auto-detect file injection with wait-for-prompt, scrollback with search and line copy/paste, full SGR colour, and a switchable EN/JA UI.",
     "locales": {
-      "en": { "title": "NetTerm", "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection." },
-      "ja": { "title": "NetTerm", "summary": "SSH / telnet / USB-シリアル / シェル端末。プロファイル・VPN・マクロ・ファイル流し込み対応。" }
+      "en": {
+        "title": "NetTerm",
+        "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection."
+      },
+      "ja": {
+        "title": "NetTerm",
+        "summary": "SSH / telnet / USB-シリアル / シェル端末。プロファイル・VPN・マクロ・ファイル流し込み対応。"
+      }
     },
-    "categories": ["Network", "Developer Tools", "Utilities", "System"],
-    "author": { "github": "u44e", "display_name": "u44e", "website": "https://github.com/u44e" },
+    "categories": [
+      "Network",
+      "Developer Tools",
+      "Utilities",
+      "System"
+    ],
+    "author": {
+      "github": "u44e",
+      "display_name": "u44e",
+      "website": "https://github.com/u44e"
+    },
     "license": "MIT",
     "commercial_use": true,
-    "source": { "openness": "open-source", "repository": "https://github.com/u44e/cardputerzero-ssh-term" },
+    "source": {
+      "openness": "open-source",
+      "repository": "https://github.com/u44e/cardputerzero-ssh-term"
+    },
     "source_repo": "https://github.com/u44e/cardputerzero-ssh-term",
     "icon": "share/images/netterm.png",
     "screenshots": [
@@ -35,9 +59,17 @@
       "store/screenshots/02-editor-320x170.png",
       "store/screenshots/03-terminal-320x170.png",
       "store/screenshots/04-menu-320x170.png",
-      "store/screenshots/05-macros-320x170.png"
+      "store/screenshots/05-macros-320x170.png",
+      "store/screenshots/06-macro-edit-320x170.png",
+      "store/screenshots/07-files-320x170.png",
+      "store/screenshots/08-send-320x170.png",
+      "store/screenshots/09-logview-320x170.png"
     ],
-    "download": { "package": "netterm", "url": "", "md5": "" },
+    "download": {
+      "package": "netterm",
+      "url": "",
+      "md5": ""
+    },
     "external_hardware": true,
     "service": false,
     "hdmi_output": false,

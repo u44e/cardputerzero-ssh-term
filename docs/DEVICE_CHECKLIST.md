@@ -81,13 +81,13 @@ polkit.addRule(function(action, subject) {
 - [ ] **framebuffer デバイス** — 小型LCDが `/dev/fb0` か `/dev/fb1` か確認。`LV_LINUX_FBDEV_DEVICE` を
       launcher が注入するか、`.desktop` をラッパー化して設定（`docs/APPSTORE.md` 参照）。
 - [ ] **実機 install→launch→exit→uninstall**（公式 acceptance）:
-      `sudo apt install --no-install-recommends ./netterm_0.2.2-m5stack1_arm64.deb` →
+      `sudo apt install --no-install-recommends ./netterm_0.2.2_arm64.deb` →
       APPLaunch にアイコン表示 → 起動 → 320×170 で表示崩れ無し → 打鍵（Ctrl/Alt/Fn/矢印/日本語）→
       **短ESC=戻る / 長ESC・Home=終了**でクリーンに launcher へ復帰 → `sudo apt remove netterm` でエントリ消滅。
 - [ ] **フォント** — `/usr/share/APPLaunch/share/font/` に Liberation Mono + AlibabaPuHuiTi が常駐し、
       端末・日本語が tofu にならないこと（無ければ同梱 or 依存追加を検討）。
 - [ ] **公開判断** — `source.openness`（private→公開 or CardputerZero org 移管。審査で有利）。
-- [ ] **提出** — `czdev login` → `czdev publish --deb port/dist/netterm_0.2.2-m5stack1_arm64.deb`
+- [ ] **提出** — `czdev login` → `czdev publish --deb port/dist/netterm_0.2.2_arm64.deb`
       （Maintainer email = 自分の GitHub。`.deb` は CI 関門を満たす構造）。
 
 ## 参考

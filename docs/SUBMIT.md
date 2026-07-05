@@ -3,7 +3,7 @@
 方針：**リポジトリを公開 → 公式 `czdev` で提出**。`czdev login` は本人の GitHub OAuth が要るので
 以下は**あなたの端末で実行**する。`.deb` とメタデータ（`app-builder.json` の `store` ブロック）は準備済み。
 
-- 出力物: `port/dist/netterm_0.2.2-m5stack1_arm64.deb`（sha256 `5abb43ffab4696c485b67b34251fe648baa6d3311fddd05a29e816f2bff1d52e` / 474 KB）
+- 出力物: `port/dist/netterm_0.2.2_arm64.deb`（sha256 `7bc8e075190a28a63238f1cff585af75aa8269d7d5ecadaa487395f4b5602d0e` / 474 KB）
 - czdev の検証（`.desktop` あり・Maintainer=`u44e@users.noreply.github.com`・パッケージ名 `netterm` 有効・サイズ<100MB）は充足済み
 
 > **czdev の実体**（重要）：公式 doc のリンク `CardputerZero/CardputerZero-AppBuilder` は**古くて 404**。
@@ -21,7 +21,7 @@ gh repo edit u44e/cardputerzero-ssh-term --visibility public --accept-visibility
 ## 1. `.deb` をビルド（未ビルド or 作り直す場合のみ。要 Docker）
 ```bash
 cd ~/Projects/cardputerzero-ssh-term
-./port/build.sh          # -> port/dist/netterm_0.2.2-m5stack1_arm64.deb
+./port/build.sh          # -> port/dist/netterm_0.2.2_arm64.deb
 ```
 
 ## 2. czdev（Python 製）と依存を用意（初回のみ・Rust 不要）
@@ -48,7 +48,7 @@ PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev login
 ```bash
 cd ~/Projects/cardputerzero-ssh-term
 PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev publish \
-  --deb port/dist/netterm_0.2.2-m5stack1_arm64.deb
+  --deb port/dist/netterm_0.2.2_arm64.deb
 # 完了時に PR URL が表示される（CardputerZero/packages 宛て）
 ```
 `czdev publish` が自動で: `.deb` 検証（.desktop / email / パッケージ名 / サイズ）→ `CardputerZero/packages` を
@@ -63,6 +63,23 @@ PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev publish \
   SIDE keycode・fbdev 表示は実機 keymap 待ち）」。実機入手後に keymap を確定し再 publish で更新。
 
 ---
+
+## 再提出する場合（版数変更・スクショ追加など）
+既に PR を出した後に内容を差し替えるとき。`czdev publish` は毎回**新しいブランチ/PR**を作るので、**古い PR を閉じてから**再 publish する。
+```bash
+# 1) 古い PR を閉じる（例: #53。番号は自分の PR に置き換え）
+gh pr close 53 -R CardputerZero/packages \
+  -c "superseded: version 0.2.2 (dropped -m5stack1) + more screenshots"
+
+# 2) （任意）fork の buffer release から古い .deb 資産を削除して整理
+gh release delete-asset czdev-buffer netterm_0.2.2-m5stack1_arm64.deb -R u44e/packages -y || true
+
+# 3) 新しい .deb で再 publish（アプリ dir で）
+cd ~/Projects/cardputerzero-ssh-term
+PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev publish \
+  --deb port/dist/netterm_0.2.2_arm64.deb
+```
+> `app-builder.json` の `store.screenshots`（現在9枚）とアイコンは publish 時に自動で取り込まれる。
 
 ## czdev の既知バグと必要な設定（外部コントリビュータ向け・適用済み）
 外部（非 collaborator）が publish するとき、素の czdev は2箇所で落ちる。`~/CardputerZero-AppBuilder` に修正済み：
