@@ -44,7 +44,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 - [機能一覧 (Feature list)](docs/FEATURES.md)
 - [画面仕様 / mockups](docs/SCREENS.md)
 - [実機ブリングアップ手順 (device checklist)](docs/DEVICE_CHECKLIST.md)
-- [AppStore 提出メモ (submission notes)](docs/APPSTORE.md) — `meta.json` / `store/` assets
+- [AppStore 提出メモ (submission notes)](docs/APPSTORE.md) — official-store port, `app-builder.json` store block, `store/` assets
 
 ## Build & run
 
@@ -55,13 +55,26 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 ```
 Requires: `brew install libvterm`, the emulator at `~/cardputer-zero/emulator`.
 
-### Device (M5CardputerZero, arm64, via czpi — a Pi Zero 2W also works as a dev rig)
+### Device — dlopen `.so` (M5CardputerZero, arm64, via czpi — a Pi Zero 2W also works as a dev rig)
+The original target: a `.so` loaded by the czpi/emulator launcher.
 ```sh
 ~/cardputer-zero/czpi/build.sh  ~/Projects/cardputerzero-ssh-term   # -> out/libssh_term.so
 ~/cardputer-zero/czpi/deploy-run.sh ssh_term --host pi@<ip>
 ```
 Pi runtime deps (one-time): `libvterm0` (added to deploy-run.sh), plus
 `openssh-client telnet` and optionally `wireguard-tools openvpn mozc-server`.
+
+### AppStore — standalone arm64 `.deb` (official CardputerZero AppStore)
+The official store fork/execs a standalone binary (not a dlopen `.so`). `port/`
+ports the same app code to a `main()` that owns the display+input (`lv_linux_fbdev`
++ `lv_evdev`) and packages an arm64 `.deb`. Builds in an arm64 Debian container
+(native on Apple Silicon) — no device or cross-sysroot needed:
+```sh
+./port/build.sh          # -> port/dist/ssh_term_<ver>-m5stack1_arm64.deb  (needs docker)
+```
+Remaining functional gap is device-only (evdev keyboard modifier tagging). See
+[docs/APPSTORE.md](docs/APPSTORE.md) for the port phases, registry metadata, and
+policy compliance.
 
 ## Keys
 
@@ -87,11 +100,22 @@ Macros are stored globally as `mac<i>.name` / `mac<i>.text`. Defaults are seeded
 src/main.c       screens + routing + key dispatch (profiles/editor/term/logs/menu/files)
 src/pty.{c,h}    self-written forkpty wrapper
 src/term.{c,h}   libvterm + per-row LVGL render + reader thread + key->PTY
-src/config.{c,h} profiles persistence
-src/logsink.{c,h} raw log tee + browser + ANSI strip
-src/sendfile.{c,h} charset detect + iconv->UTF-8 + paced send
+src/config.{c,h} profiles + macros persistence
+src/logsink.{c,h} raw log tee + browser + ANSI strip + in-log search + size cap
+src/sendfile.{c,h} charset detect + iconv->UTF-8 + paced / wait-for-prompt send
 src/vpn.{c,h}    OS-managed bring-up (nmcli/per-tool by name, no secrets) + getifaddrs probe
                  (Japanese input = OS IME; no in-app IME module)
+emu/cz_app.h     host ABI header (app_main / app_event / CZ_EV_*), shared by both builds
+
+# build targets (same src/, two hosts)
+CMakeLists.txt / build-emu.sh   dlopen .so for the czpi/emulator launcher (desktop preview)
+port/            standalone arm64 binary + .deb for the official AppStore (fbdev/evdev)
+
+# AppStore assets (referenced by app-builder.json "store")
+share/images/ssh_term.png       100x100 icon
+store/screenshots/*-320x170.png store screenshots
+docs/APPSTORE.md                submission port, metadata, policy compliance
+
 docs/SCREENS.md  screen spec + docs/mockups/ PNGs   docs/gen_mockups.py
 ```
 

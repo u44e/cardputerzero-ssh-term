@@ -15,7 +15,6 @@ docs/fonts/*.otf
 *.swp
 
 # standalone port build output
-standalone/out/
 port/.lvgl/
 port/build/
 port/lv_conf.h
