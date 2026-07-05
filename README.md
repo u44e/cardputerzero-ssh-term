@@ -46,6 +46,7 @@ are the device's own (Liberation Mono + Alibaba PuHui Ti), not redistributed.
 - [画面仕様 / mockups](docs/SCREENS.md)
 - [実機ブリングアップ手順 (device checklist)](docs/DEVICE_CHECKLIST.md)
 - [AppStore 提出メモ (submission notes)](docs/APPSTORE.md) — official-store port, `app-builder.json` store block, `store/` assets
+- [**提出手順 (submit — copy-paste)**](docs/SUBMIT.md) — make repo public → `czdev login` → `czdev publish`
 
 ## Build & run
 
