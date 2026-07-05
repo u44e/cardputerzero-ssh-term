@@ -64,6 +64,17 @@ PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev publish \
 
 ---
 
+## czdev の既知バグと必要な設定（外部コントリビュータ向け・適用済み）
+外部（非 collaborator）が publish するとき、素の czdev は2箇所で落ちる。`~/CardputerZero-AppBuilder` に修正済み：
+1. **`HTTP 403` で `check_permission` がクラッシュ** → `scripts/czdev/github_client.py` の `if e.code == 404:` を
+   `if e.code in (403, 404):` に（403＝権限照会不可＝write権限なし→fork フローへ）。
+2. **メタデータ push が SSH（`git@github.com`）** → `scripts/czdev/publish.py` の `remote_url` を
+   `https://github.com/...` に変更（SSH 鍵不要で gh の認証で push）。加えて **一度だけ**:
+   ```bash
+   gh auth setup-git      # git の HTTPS push で gh のトークンを使う
+   ```
+> これらは czdev 側のバグなので、上流（`m5stack/CardputerZero-AppBuilder`）に issue/PR を出すと親切。
+
 ## つまずいたら
 - **`No module named czdev`** → `PYTHONPATH` に `~/CardputerZero-AppBuilder/scripts` を必ず付ける（`-m czdev` は package 実行）。
 - **`app-builder.json not found`** → `cd ~/Projects/cardputerzero-ssh-term` で（＝cwd をアプリ dir に）実行しているか確認。
