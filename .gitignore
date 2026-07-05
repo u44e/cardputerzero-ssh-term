@@ -16,3 +16,7 @@ docs/fonts/*.otf
 
 # standalone port build output
 standalone/out/
+port/.lvgl/
+port/build/
+port/lv_conf.h
+port/dist/
