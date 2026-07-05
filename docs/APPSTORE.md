@@ -76,9 +76,24 @@ czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
 - **czdev**：AppBuilder から `cargo build --release -p czdev` → `czdev doctor` / `czdev run|watch`（SDLデバッグ）/
   `czdev deploy --host pi@<ip> --deb <file>` / `czdev login` / `czdev publish --deb <file>`。
 
-## 提出前の必須ゲート
-**実機（M5CardputerZero）での install→launch→exit→uninstall 検証が必須**（公式 acceptance checklist）。
-現状 device 無し＋移植②③④未了のため、**まだ提出できない**。順序：移植②③④ → 実機検証 → `czdev publish`。
+## 提出ゲートの実際（`CardputerZero/packages` の `validate-pr.yml` を確認）
+機械的に強制されるのは **`.deb` の構造チェックのみ**（PR CI）:
+1. 生`.deb`をgit commitしない（Release manifest方式）／2. manifestに`url`/`sha256`/`filename`／
+3. URLからDL可＋**sha256一致**／4. 正しい`.deb`／5. ディレクトリ名=Package名／6. **`.desktop`を含む**／
+7. パッケージ名正規表現／8. ファイル名=`<pkg>_<ver>_<arch>.deb`／9. **`.deb`のMaintainer email = PR作成者**
+（`<id>@users.noreply.github.com` か検証済メール）／10. バージョンが既存より新しい。
+
+- **実機テストは無い**（GitHub Actions は arm64 GUI を実機で動かせない）。SDL smoke test も要件文書には
+  あるが**実CIには未実装**。store の uuid/スクショ/権限/プライバシーもこの関門では未検証。
+- したがって **物理デバイス無しでも提出PRは通せる。** 本当に要るのは **ビルド済み arm64 `.deb`**
+  （＝移植②③④＋クロスビルド。**デバイス自体は不要**）。
+- ただし実機動作確認は**推奨（開発者セルフチェック）＋人間のメンテナ審査が要求しうる**もの。本アプリは
+  **closed-source＋network＋pkexec＋USB**で審査が厳しめ（policy）なので、未検証提出は `needs-changes`/`rejected`
+  の**審査リスク**が高い（機械的ゲートではない）。
+- **Maintainer email**：`.deb` の control の Maintainer を PR作成者（`u44e@users.noreply.github.com` 等）に合わせる必要。
+
+**結論**：提出に不可欠なのは *arm64 `.deb` のビルド*（移植②③④）。実機は「機械的必須」ではないが「審査を通すため実質推奨」。
+順序：移植②③④ →（可能なら実機/エミュ検証）→ `czdev publish`。
 
 ## 形式に依存せず用意済みのアセット
 | 準備物 | 実体 | 要件 |
