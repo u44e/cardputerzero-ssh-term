@@ -13,3 +13,6 @@ docs/fonts/*.otf
 # misc
 .DS_Store
 *.swp
+
+# standalone port build output
+standalone/out/
