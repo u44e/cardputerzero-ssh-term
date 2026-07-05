@@ -2,7 +2,7 @@
   "name": "NetTerm",
   "package": "ssh_term",
   "package_name": "ssh_term",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "app_name": "NetTerm",
   "bin_name": "ssh_term",
   "description": "SSH/telnet/serial/shell terminal for M5CardputerZero — profiles, OS-managed VPN, session logs, file injection (charset auto-detect), quick-send macros, Japanese input, font-size, EN/JA UI",

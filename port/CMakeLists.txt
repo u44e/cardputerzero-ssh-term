@@ -2,7 +2,7 @@
 # Build inside an arm64 Debian Bookworm environment (matches the device ABI).
 # LVGL v9.5 is provided via -DLVGL_DIR. See port/build.sh.
 cmake_minimum_required(VERSION 3.20)
-project(ssh_term VERSION 0.2.1 LANGUAGES C)
+project(ssh_term VERSION 0.2.2 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
