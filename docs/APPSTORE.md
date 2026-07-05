@@ -44,11 +44,41 @@ czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
 承認後、4文字 **share code**（ホーム画面 `S`→コード）。`czdev login`/`czdev publish` は
 **本人の GitHub OAuth が必要**なのでアシスタントでは実行しない。
 
-## メタデータ（形式は確認済み・準備済み）
-公式は**別ファイル `meta.json` ではなく `app-builder.json` の `"store"` ブロック**（2048 で確認）。
-本リポジトリの `app-builder.json` に追加済み：`store{summary,categories,license,source_repo,icon,screenshots,permissions}`。
-- カテゴリは公式一覧（Games/Utilities/Communication/AI/Media/Education/Development/System）から採用。
-- `permissions`：`keyboard_input`/`network`/`filesystem:"full"`/`external_hardware`。
+## メタデータ（レジストリ・スキーマに準拠して記述済み）
+公式は**別 `meta.json` ではなく `app-builder.json` の `"store"` ブロック**（2048・skill-ai-coding-guide で確認）。
+`appstore-registry-requirements.md` のスキーマに合わせて記述済み：
+- **`uuid`**：`76048bc8-5565-4872-9855-51ffba65f160`（**share code＝先頭4桁 `7604`**。ホーム画面 `S`→`7604` で導入）。
+- `title`/`summary`/`description`/`locales`(en,ja)。カテゴリは**レジストリ分類**（Games/Media/Music/Productivity/
+  **Developer Tools**/**Network**/Communication/Hardware/Education/Utilities/System/AI/Experimental）から
+  `["Network","Developer Tools","Utilities","System"]`。
+- `author.github`=`u44e`、`license`=MIT、`commercial_use`=true。
+- **`source.openness`**：現在 **`closed-source`**（repo が private のため）。公開すれば `open-source`。**要判断（下記）**。
+- `permissions`（全次元を明示）＋ `privacy`（収集なし・端末外送信は接続先のみ・ローカル保存・第三者共有なし）＋
+  `external_hardware`(USB-serial)＋`service`=false＋`hdmi_output`=false＋`risk_flags`（pkexec VPN / USB-serial / ssh egress）。
+- `download.{package,url,md5}`：**url/md5 は publish 時に確定**（`.deb` の MD5）。
+
+## 準拠チェックリスト（submission-policy / user-agreement）
+- **本人性**：GitHub ID `u44e` で提出（traceable identity・必須）。
+- **配布権**：本体は MIT、libvterm=MIT（リンク）、フォントは**同梱せず**実機常駐を読むだけ＝再配布問題なし。
+- **メタ真実性**：network/filesystem/external_hardware/service を正確申告（隠蔽・誇大禁止）。
+- **プライバシー**：接続プロファイル（ホスト/ユーザ/鍵パス。**パスワード・VPN秘密は非保存**）とログを `/sdcard` にローカル保存、
+  端末外へはユーザが選んだ接続先へのみ、テレメトリ無し。→ `privacy` ブロックに明記済み。
+- **デバイス安全**：VPN は `pkexec` で特権ツール起動、USB-serial は外部HW。→ `risk_flags` に明記、審査コメントでも用途説明。
+- **UX/退出**：320×170 準拠。**短ESC=戻る/長ESC・Home=終了**が公式作法。本アプリの端末では ESC を PTY へ素通し（vim等）
+  するため、退出は Home/SIGTERM（`app_event(CZ_EV_EXIT_REQUEST)` で後始末）に依存 → **移植②③で長ESC/Home 終了を実装・実機確認**。
+- **起動即クラッシュ不可／実験扱いは明示**：該当なし。
+
+## デバイス実装の要件（application-development-guide / skill-ai-coding-guide）
+- `.desktop`：`Exec=bin/ssh_term`（`/usr/share/APPLaunch` 相対）・`Terminal=false`・`Icon=share/images/ssh_term.png`。
+  環境変数が要るならラッパースクリプト（複雑な `Exec` は禁止）。
+- **framebuffer**：`LV_LINUX_FBDEV_DEVICE` を尊重。**`/dev/fb0` 決め打ち禁止**（LCD は `/dev/fb1` の場合あり）。
+- **CJKフォント**：日本語表示に CJK 対応フォント（実機常駐の AlibabaPuHuiTi を利用）。
+- **czdev**：AppBuilder から `cargo build --release -p czdev` → `czdev doctor` / `czdev run|watch`（SDLデバッグ）/
+  `czdev deploy --host pi@<ip> --deb <file>` / `czdev login` / `czdev publish --deb <file>`。
+
+## 提出前の必須ゲート
+**実機（M5CardputerZero）での install→launch→exit→uninstall 検証が必須**（公式 acceptance checklist）。
+現状 device 無し＋移植②③④未了のため、**まだ提出できない**。順序：移植②③④ → 実機検証 → `czdev publish`。
 
 ## 形式に依存せず用意済みのアセット
 | 準備物 | 実体 | 要件 |

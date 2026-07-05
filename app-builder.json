@@ -15,9 +15,19 @@
   "event_entry": "app_event",
   "caps": ["keyboard", "network", "pty", "process", "filesystem"],
   "store": {
+    "uuid": "76048bc8-5565-4872-9855-51ffba65f160",
+    "title": "NetTerm",
     "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection.",
-    "categories": ["Utilities", "Development", "Communication"],
+    "description": "A pocket terminal for network gear: SSH, telnet, USB-serial console (picocom) and local shell. Connection profiles with OS-managed VPN, per-profile SSH key and color theme, session logging with search, quick-send macros, charset-auto-detect file injection with wait-for-prompt, scrollback with search and line copy/paste, full SGR colour, and a switchable EN/JA UI.",
+    "locales": {
+      "en": { "title": "NetTerm", "summary": "SSH / telnet / USB-serial / shell terminal with profiles, VPN, macros and file injection." },
+      "ja": { "title": "NetTerm", "summary": "SSH / telnet / USB-シリアル / シェル端末。プロファイル・VPN・マクロ・ファイル流し込み対応。" }
+    },
+    "categories": ["Network", "Developer Tools", "Utilities", "System"],
+    "author": { "github": "u44e", "display_name": "u44e", "website": "https://github.com/u44e" },
     "license": "MIT",
+    "commercial_use": true,
+    "source": { "openness": "closed-source", "repository": "https://github.com/u44e/cardputerzero-ssh-term" },
     "source_repo": "https://github.com/u44e/cardputerzero-ssh-term",
     "icon": "share/images/ssh_term.png",
     "screenshots": [
@@ -27,14 +37,35 @@
       "store/screenshots/04-menu-320x170.png",
       "store/screenshots/05-macros-320x170.png"
     ],
+    "download": { "package": "ssh_term", "url": "", "md5": "" },
+    "external_hardware": true,
+    "service": false,
+    "hdmi_output": false,
     "permissions": {
       "keyboard_input": true,
       "network": true,
       "filesystem": "full",
       "external_hardware": true,
+      "hdmi_output": false,
+      "background_service": false,
       "audio_output": false,
       "microphone": false,
-      "background_service": false
-    }
+      "camera": false,
+      "sensors": false,
+      "gps": false,
+      "device_id": false
+    },
+    "privacy": {
+      "collects_personal_data": false,
+      "data_leaves_device": "only to the remote hosts the user chooses to connect to (ssh/telnet/serial); no telemetry",
+      "data_retention": "connection profiles and session logs are stored locally on /sdcard until the user deletes them",
+      "third_party_sharing": false
+    },
+    "risk_flags": [
+      "privileged VPN bring-up via pkexec (wg-quick/nmcli etc.)",
+      "USB-serial external hardware access (/dev/ttyUSB*)",
+      "arbitrary network egress as an ssh/telnet client"
+    ],
+    "review": { "status": "pending" }
   }
 }
