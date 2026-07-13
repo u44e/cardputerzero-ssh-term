@@ -1,5 +1,7 @@
 # NetTerm (`ssh_term`) — CardputerZero SSH / telnet / serial / shell terminal
 
+[![build](https://github.com/u44e/cardputerzero-ssh-term/actions/workflows/ci.yml/badge.svg)](https://github.com/u44e/cardputerzero-ssh-term/actions/workflows/ci.yml)
+
 A portable terminal for the **M5CardputerZero** (AArch64 Linux / Raspberry Pi OS, LVGL 9.5,
 320×170). SSH / telnet / **USB-serial console** / local-shell sessions with
 connection profiles, OS-managed VPN, session logging, file injection (any text,
