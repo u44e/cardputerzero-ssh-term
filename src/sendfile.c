@@ -76,17 +76,20 @@ static char *to_utf8(const char *in, size_t inlen, const char *from, size_t *out
 {
     if (!strcmp(from, "UTF-8") || !strcmp(from, "ascii")) {
         char *o = malloc(inlen + 1);
+        if (!o) return NULL;
         memcpy(o, in, inlen); o[inlen] = 0; *outlen = inlen;
         return o;
     }
     iconv_t cd = iconv_open("UTF-8", from);
     if (cd == (iconv_t)-1) {
         char *o = malloc(inlen + 1);
+        if (!o) return NULL;
         memcpy(o, in, inlen); o[inlen] = 0; *outlen = inlen;
         return o;
     }
     size_t cap = inlen * 4 + 16;
     char *out = malloc(cap);
+    if (!out) { iconv_close(cd); return NULL; }
     char *ip = (char *)in, *op = out;
     size_t il = inlen, ol = cap;
     iconv(cd, &ip, &il, &op, &ol);
@@ -133,7 +136,9 @@ int sendfile_start(const char *path, int wait_prompt)
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
     if (sz < 0) { fclose(f); return -1; }
+    if (sz > 4L * 1024 * 1024) sz = 4L * 1024 * 1024;   /* cap: injected files are small */
     char *raw = malloc((size_t)sz + 1);
+    if (!raw) { fclose(f); return -1; }
     size_t rd = fread(raw, 1, (size_t)sz, f);
     fclose(f);
     raw[rd] = 0;
@@ -142,6 +147,7 @@ int sendfile_start(const char *path, int wait_prompt)
     size_t ol = 0;
     char *u = to_utf8(raw, rd, enc, &ol);
     free(raw);
+    if (!u) return -1;
 
     sendfile_cancel();
     sf.buf = u; sf.len = ol; sf.pos = 0;

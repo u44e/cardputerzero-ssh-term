@@ -26,15 +26,7 @@
 #define UI_JP_PATH "/usr/share/APPLaunch/share/font/AlibabaPuHuiTi-3-55-Regular.ttf"
 #endif
 
-#define COL_BG     0x1A1A2E
-#define COL_TITLE  0x3AD8FF
-#define COL_TEXT   0xECECF2
-#define COL_DIM    0xA2A2C0
-#define COL_HILITE 0x2C2C52
-#define COL_CYAN   0x3AD8FF
-#define COL_AMBER  0xFFB82E
-#define COL_GREEN  0x4CD96A
-#define COL_RED    0xFF6B6B
+#include "ui_tune.h"   /* COL_* パレット(+emu 限定チューニングフック) */
 
 enum { SCR_PROFILES, SCR_EDITOR, SCR_TERM, SCR_LOGS, SCR_LOGVIEW, SCR_MENU, SCR_FILES,
        SCR_SEND, SCR_DIALOG, SCR_TERM_DISC,     /* _DISC = session ended, output frozen for review */
@@ -564,7 +556,7 @@ static uint32_t g_disc_tick;    /* when SCR_TERM_DISC was entered (key grace per
 static void add_status_bar(const profile_t *p, int logging)
 {
     int by = 154;
-    mkrect(0x0A0A10, 0, by, 320, 170 - by);
+    mkrect(COL_STATUS, 0, by, 320, 170 - by);
     mkrect(COL_DIM, 0, by, 320, 1);
     char s[96];
     snprintf(s, sizeof(s), tr("%s   CONNECTED%s   SIDE=menu","%s   接続中%s   SIDE=menu"),
@@ -589,7 +581,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1; g_sendprog = NULL;
     term_render_pause(0);
     lv_obj_clean(g_root);
-    lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_TERM_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     if (p->log) logsink_open(p->name);
@@ -689,7 +681,7 @@ static void logview_prompt(void)   /* bottom line: guide, or the find box while 
     char s[80];
     if (g_logfinding) snprintf(s, sizeof(s), tr("find: %s_","検索: %s_"), g_ebuf);
     else if (g_logfind[0]) snprintf(s, sizeof(s), tr("/:find  n:next  ESC:back   [%s]","/:検索 n:次 ESC:戻る [%s]"), g_logfind);
-    else snprintf(s, sizeof(s), tr(LV_SYMBOL_UP LV_SYMBOL_DOWN ":scroll  /:find  ESC:back","↑↓:スクロール /:検索 ESC:戻る"));
+    else snprintf(s, sizeof(s), "%s", tr(LV_SYMBOL_UP LV_SYMBOL_DOWN ":scroll  /:find  ESC:back","↑↓:スクロール /:検索 ESC:戻る"));
     lv_label_set_text(g_logprompt, s);
 }
 
@@ -716,7 +708,7 @@ static void show_logview(int i)
 {
     g_scr = SCR_LOGVIEW;
     lv_obj_clean(g_root);
-    lv_obj_set_style_bg_color(g_root, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_TERM_BG), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
     if (!g_mono) load_font_idx(0);
 
@@ -724,7 +716,7 @@ static void show_logview(int i)
     lv_obj_t *ta = lv_textarea_create(g_root);
     lv_obj_set_style_text_font(ta, g_mono, 0);
     lv_obj_set_style_text_color(ta, lv_color_hex(COL_TEXT), 0);
-    lv_obj_set_style_bg_color(ta, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(ta, lv_color_hex(COL_TERM_BG), 0);
     lv_obj_set_style_border_width(ta, 0, 0);
     lv_obj_set_size(ta, 320, 132);
     lv_obj_set_pos(ta, 0, 20);
@@ -737,7 +729,7 @@ static void show_logview(int i)
     g_logfinding = 0; g_logfind_pos = 0; g_logfind[0] = 0;
 
     g_logprompt = mklabel(ui_font(12), COL_DIM, 0, 0, "");
-    lv_obj_set_style_bg_color(g_logprompt, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_color(g_logprompt, lv_color_hex(COL_TERM_BG), 0);
     lv_obj_set_style_bg_opa(g_logprompt, LV_OPA_COVER, 0);
     lv_obj_set_width(g_logprompt, 320);
     lv_obj_align(g_logprompt, LV_ALIGN_BOTTOM_LEFT, 8, -2);
@@ -824,7 +816,7 @@ static lv_obj_t *overlay_panel(int w, int h)
 
     lv_obj_t *o = lv_obj_create(g_backdrop);   /* centered panel on the backdrop */
     lv_obj_remove_flag(o, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_bg_color(o, lv_color_hex(0x10101E), 0);
+    lv_obj_set_style_bg_color(o, lv_color_hex(COL_SURFACE), 0);
     lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(o, lv_color_hex(COL_CYAN), 0);
     lv_obj_set_style_border_width(o, 1, 0);
@@ -963,7 +955,7 @@ static void scroll_hint(int on)   /* bottom indicator while viewing history */
 {
     if (on && !g_scrollhint) {
         g_scrollhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
-        lv_obj_set_style_bg_color(g_scrollhint, lv_color_hex(0x10101E), 0);
+        lv_obj_set_style_bg_color(g_scrollhint, lv_color_hex(COL_SURFACE), 0);
         lv_obj_set_style_bg_opa(g_scrollhint, LV_OPA_COVER, 0);
         lv_obj_set_width(g_scrollhint, 320);
         lv_label_set_text(g_scrollhint, tr("scrollback  (Alt+down / type = live)",
@@ -1009,7 +1001,7 @@ static void copy_mode_on(void)
     lv_obj_set_style_bg_opa(g_copybar, LV_OPA_30, 0);
     lv_obj_set_size(g_copybar, 320, g_ch);
     g_copyhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
-    lv_obj_set_style_bg_color(g_copyhint, lv_color_hex(0x10101E), 0);
+    lv_obj_set_style_bg_color(g_copyhint, lv_color_hex(COL_SURFACE), 0);
     lv_obj_set_style_bg_opa(g_copyhint, LV_OPA_COVER, 0);
     lv_obj_set_width(g_copyhint, 320);
     lv_label_set_text(g_copyhint, tr("copy  " LV_SYMBOL_UP LV_SYMBOL_DOWN ":line  Enter:copy  ESC",
@@ -1081,7 +1073,7 @@ static void open_find(void)   /* enter search mode over the frozen terminal */
     g_ebuf[0] = 0; g_findq[0] = 0; g_find_typing = 1; g_find_after = FIND_FROM_NEWEST;
     term_render_pause(1); term_render_once();
     g_findhint = mklabel(ui_font(12), COL_CYAN, 4, 154, "");
-    lv_obj_set_style_bg_color(g_findhint, lv_color_hex(0x10101E), 0);
+    lv_obj_set_style_bg_color(g_findhint, lv_color_hex(COL_SURFACE), 0);
     lv_obj_set_style_bg_opa(g_findhint, LV_OPA_COVER, 0);
     lv_obj_set_width(g_findhint, 320);
     find_hint();
@@ -1461,7 +1453,7 @@ static void sendprog_tick(lv_timer_t *t)
     if (sendfile_active() && (g_scr == SCR_TERM || g_scr == SCR_TERM_DISC)) {
         if (!g_sendprog) {
             g_sendprog = mklabel(ui_font(12), COL_AMBER, 250, 156, "");
-            lv_obj_set_style_bg_color(g_sendprog, lv_color_hex(0x0A0A10), 0);
+            lv_obj_set_style_bg_color(g_sendprog, lv_color_hex(COL_STATUS), 0);
             lv_obj_set_style_bg_opa(g_sendprog, LV_OPA_COVER, 0);
         }
         char s[16]; snprintf(s, sizeof(s), "SEND %d%%", sendfile_progress());
@@ -1498,6 +1490,7 @@ static void watch_cb(lv_timer_t *t)
 
 void app_main(lv_obj_t *parent)
 {
+    ui_tune_load();                             /* emu 限定: UI_TUNE_FILE で上書き */
     g_root = parent;
     lv_obj_set_style_pad_all(parent, 0, 0);
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);

@@ -1,0 +1,10 @@
+{
+  "shotDelayMs": 900,
+  "screens": [
+    { "id": "profiles", "label": "Sessions",     "env": { "TERM_CONF": "/tmp/cz-tuner-term.conf" } },
+    { "id": "editor",   "label": "Editor",       "env": { "TERM_CONF": "/tmp/cz-tuner-term.conf", "AUTO_EDIT": "0" } },
+    { "id": "menu",     "label": "Session Menu", "env": { "TERM_CONF": "/tmp/cz-tuner-term.conf", "AUTO_MENU": "1" } },
+    { "id": "files",    "label": "File Browser", "env": { "TERM_CONF": "/tmp/cz-tuner-term.conf", "AUTO_FILES": "1" } },
+    { "id": "logs",     "label": "Logs",         "env": { "TERM_CONF": "/tmp/cz-tuner-term.conf", "AUTO_LOGS": "1" } }
+  ]
+}

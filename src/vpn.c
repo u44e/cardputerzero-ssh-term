@@ -28,7 +28,7 @@ int vpn_type_count(void) { return (int)(sizeof(VPN_TYPES) / sizeof(VPN_TYPES[0])
 static int  s_we_started = 0;
 static int  s_via_nm     = 0;      /* brought up through NetworkManager? (matches teardown) */
 static char s_type[16] = {0};
-static char s_cfg[64]  = {0};
+static char s_cfg[128] = {0};
 
 /* Is NetworkManager's nmcli available? (Raspberry Pi OS Bookworm default stack) */
 static int nm_present(void)
@@ -80,6 +80,7 @@ int vpn_up(const profile_t *p)
     snprintf(s_type, sizeof(s_type), "%s", type);
     snprintf(s_cfg, sizeof(s_cfg), "%s", p->vpn);
     s_via_nm = 0;
+    if (strcmp(type, "tailscale") && p->vpn[0] == '-') return -1;   /* name must not look like an option */
 
     if (strcmp(type, "tailscale") && nm_present() && p->vpn[0]) {
         const char *nm[] = { "pkexec", "nmcli", "connection", "up", p->vpn, NULL };

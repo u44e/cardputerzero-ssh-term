@@ -219,7 +219,7 @@ void config_macro_delete(int i)
 
 const char *const *config_argv(int i)
 {
-    static char sh[64], dest[192], port[16], keyp[96];
+    static char sh[64], dest[208], port[16], keyp[96];
     static char db[4], par[4], sb[4];       /* serial: databits / parity / stopbits */
     static const char *argv[14];
     const profile_t *p = config_get(i);
@@ -235,6 +235,7 @@ const char *const *config_argv(int i)
     }
     if (!strcmp(p->proto, "telnet")) {
         snprintf(dest, sizeof(dest), "%s", p->host);
+        if (dest[0] == '-') return NULL;   /* refuse a host that looks like an option */
         snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "23");
         argv[n++] = "telnet"; argv[n++] = dest; argv[n++] = port;
         argv[n] = NULL;
@@ -248,6 +249,7 @@ const char *const *config_argv(int i)
             f = "8N1";   /* reject anything not a valid databits/parity/stopbits triple */
         snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "115200");
         snprintf(dest, sizeof(dest), "%s", p->host[0] ? p->host : "/dev/ttyUSB0");
+        if (dest[0] == '-') return NULL;   /* refuse a device that looks like an option */
         snprintf(db,  sizeof(db),  "%c", f[0]);                      /* 7 | 8 */
         snprintf(par, sizeof(par), "%c", f[1] == 'E' ? 'e' : f[1] == 'O' ? 'o' : 'n');
         snprintf(sb,  sizeof(sb),  "%c", f[2]);                      /* 1 | 2 */
@@ -265,6 +267,7 @@ const char *const *config_argv(int i)
     snprintf(port, sizeof(port), "%s", p->port[0] ? p->port : "22");
     if (p->user[0]) snprintf(dest, sizeof(dest), "%s@%s", p->user, p->host);
     else            snprintf(dest, sizeof(dest), "%s", p->host);
+    if (dest[0] == '-') return NULL;   /* refuse a host that ssh would read as an option */
     argv[n++] = "ssh";
     argv[n++] = "-p"; argv[n++] = port;
     argv[n++] = "-o"; argv[n++] = "ServerAliveInterval=30";

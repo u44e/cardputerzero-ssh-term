@@ -85,13 +85,6 @@ static void *reader_fn(void *arg)
     return NULL;
 }
 
-static uint32_t cell_rgb(VTermScreenCell *cell)
-{
-    VTermColor c = cell->fg;
-    vterm_screen_convert_color_to_rgb(g.vts, &c);
-    return ((uint32_t)c.rgb.red << 16) | ((uint32_t)c.rgb.green << 8) | c.rgb.blue;
-}
-
 /* fg/bg (as RGB) + underline for a live cell: bold brightens the foreground
  * ("bold as bright", no bold face needed), then reverse-video swaps fg/bg. */
 static void cell_colors(VTermScreenCell *cell, uint32_t *fg, uint32_t *bg, int *ul)
