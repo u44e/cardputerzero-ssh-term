@@ -1,0 +1,45 @@
+name: build
+
+# Compile the app sources with the same flags as build-emu.sh and fail if any
+# of OUR files (src/) produce a warning or error under -Wall -Wextra. LVGL/vterm
+# header noise is ignored (third-party). This locks in the warning-free build.
+
+on:
+  push:
+    paths: ['src/**', 'emu/**', 'build-emu.sh', '.github/workflows/ci.yml']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain + libs (SDL2, libvterm, iconv is in glibc)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang pkg-config libsdl2-dev libvterm-dev
+
+      - name: Fetch LVGL / cardputer-emu headers
+        run: |
+          git clone --depth 1 https://github.com/CardputerZero/emulator.git ../emulator
+          git -C ../emulator submodule update --init --depth 1 lib/lvgl
+
+      - name: Compile check (-Wall -Wextra, warning-free in src/)
+        run: |
+          EMU=../emulator
+          clang -fsyntax-only -Wall -Wextra -Wno-unused-parameter -std=gnu11 \
+            -DLV_CONF_INCLUDE_SIMPLE -DLV_LVGL_H_INCLUDE_SIMPLE -DAPP_EMU -DSSH_TERM_TEST_HOOKS \
+            -I "$EMU" -I "$EMU/lib" -I "$EMU/lib/lvgl" -I emu \
+            $(pkg-config --cflags sdl2) $(pkg-config --cflags vterm 2>/dev/null) \
+            src/*.c 2>&1 | tee build.log
+          rc=${PIPESTATUS[0]}
+          if grep -E 'src/[^:]+:[0-9]+:[0-9]+: (warning|error):' build.log; then
+            echo "::error::src/ has warnings or errors under -Wall -Wextra"; exit 1
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::compilation failed (see log above)"; exit 1
+          fi
+          echo "OK — src/ compiles clean under -Wall -Wextra"
