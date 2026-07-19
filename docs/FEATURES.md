@@ -35,8 +35,8 @@
 | 機能 | 状態 |
 |------|:--:|
 | **フォントサイズ可変 12/16/20px**：プロファイル毎＋実行中変更（メニュー「Font size」→`term_resize`で桁行＋winsize再計算） | ✅ |
-| **端末カラーテーマ**（プロファイル毎の既定文字色 green/amber/cyan/white。カーソル・スクロールバック既定色も追従） | ✅ |
-| 1行ステータスバー（名前 / CONNECTED / VPN / REC / SIDE） | ✅ |
+| **端末カラーテーマ**（プロファイル毎、`/sdcard/themes.json` で管理・編集・追加可。既定 green/amber/cyan/white/lcd/pocket — lcd/pocket は昔の液晶風の明色背景テーマ。fg/bg・カーソル・スクロールバック既定色も追従） | ✅ |
+| 1行ステータスバー（名前 / CONNECTED / VPN / REC / Alt+m=menu。配色は端末テーマに追従） | ✅ |
 | 画面遷移・各画面のキーガイド | ✅ |
 
 ## キーボード入力

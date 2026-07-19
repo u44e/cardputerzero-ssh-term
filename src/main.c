@@ -13,6 +13,7 @@
 #include <time.h>
 #include <ctype.h>
 #include "config.h"
+#include "themes.h"
 #include "term.h"
 #include "logsink.h"
 #include "sendfile.h"
@@ -456,21 +457,14 @@ static void editor_toggle(profile_t *p, int dir)
         for (int i = 0; i < m; i++) if (!strcmp(p->sfmt, SFMTS[i])) cur = i;
         snprintf(p->sfmt, sizeof(p->sfmt), "%s", SFMTS[(cur + (dir >= 0 ? 1 : m - 1)) % m]);
         break; }
-    case 6: {   /* terminal colour theme (default foreground) */
-        static const char *const THEMES[] = { "green", "amber", "cyan", "white" };
-        int m = 4, cur = 0;
-        for (int i = 0; i < m; i++) if (!strcmp(p->theme, THEMES[i])) cur = i;
-        snprintf(p->theme, sizeof(p->theme), "%s", THEMES[(cur + (dir >= 0 ? 1 : m - 1)) % m]);
+    case 6: {   /* terminal colour theme (list managed in themes.json) */
+        int m = themes_count(), cur = themes_index(p->theme);
+        if (m <= 0) break;
+        if (cur < 0) cur = 0;
+        snprintf(p->theme, sizeof(p->theme), "%s",
+                 themes_name((cur + (dir >= 0 ? 1 : m - 1)) % m));
         break; }
     }
-}
-
-static uint32_t theme_rgb(const char *t)
-{
-    if (!strcmp(t, "amber")) return 0xFFB82E;
-    if (!strcmp(t, "cyan"))  return 0x3AD8FF;
-    if (!strcmp(t, "white")) return 0xECECF2;
-    return 0x4CD96A;   /* green (default) */
 }
 
 /* toggle, then keep the cursor on the same logical row: crossing the serial
@@ -556,14 +550,15 @@ static uint32_t g_disc_tick;    /* when SCR_TERM_DISC was entered (key grace per
 static void add_status_bar(const profile_t *p, int logging)
 {
     int by = 154;
-    mkrect(COL_STATUS, 0, by, 320, 170 - by);
-    mkrect(COL_DIM, 0, by, 320, 1);
+    uint32_t fg = themes_fg(p->theme), bg = themes_bg(p->theme);   /* bar matches the theme */
+    mkrect(bg, 0, by, 320, 170 - by);
+    mkrect(fg, 0, by, 320, 1);
     char s[96];
-    snprintf(s, sizeof(s), tr("%s   CONNECTED%s   SIDE=menu","%s   接続中%s   SIDE=menu"),
+    snprintf(s, sizeof(s), tr("%s   CONNECTED%s   Alt+m=menu","%s   接続中%s   Alt+m=menu"),
              p->name, logging ? tr("   REC","   録画") : "");
     g_status = lv_label_create(g_root);
     lv_obj_set_style_text_font(g_status, ui_font(12), 0);
-    lv_obj_set_style_text_color(g_status, lv_color_hex(COL_GREEN), 0);
+    lv_obj_set_style_text_color(g_status, lv_color_hex(fg), 0);
     lv_obj_set_pos(g_status, 6, by + 2);
     lv_label_set_text(g_status, s);
 }
@@ -581,11 +576,12 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     g_copybar = NULL; g_copyhint = NULL; g_copy_row = -1; g_sendprog = NULL;
     term_render_pause(0);
     lv_obj_clean(g_root);
-    lv_obj_set_style_bg_color(g_root, lv_color_hex(COL_TERM_BG), 0);
+    const char *theme = p->theme[0] ? p->theme : "green";
+    lv_obj_set_style_bg_color(g_root, lv_color_hex(themes_bg(theme)), 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     if (p->log) logsink_open(p->name);
-    term_set_theme(theme_rgb(p->theme[0] ? p->theme : "green"));
+    term_set_theme(themes_fg(theme), themes_bg(theme));
     term_create(g_root, argv, g_mono, g_cols, g_rows, g_cw, g_ch);
     add_status_bar(p, p->log);
     /* Japanese input is handled by the OS IME (fcitx5-mozc): composed text
@@ -639,7 +635,11 @@ static void enter_disconnected(void)
     g_session_up = 0;
     logsink_close();      /* finalize the log; the rendered buffer stays visible */
     if (g_status) {
-        lv_obj_set_style_text_color(g_status, lv_color_hex(COL_RED), 0);
+        const profile_t *p = config_get(g_cur_pidx);
+        uint32_t bg = themes_bg(p ? p->theme : NULL);
+        int light = ((bg >> 16 & 0xFF) * 299 + (bg >> 8 & 0xFF) * 587
+                     + (bg & 0xFF) * 114) >= 128000;   /* light LCD bg -> dark red */
+        lv_obj_set_style_text_color(g_status, lv_color_hex(light ? 0x8F1D1D : COL_RED), 0);
         lv_label_set_text(g_status, tr("DISCONNECTED   Enter:close  r:reconnect",
                                        "切断   Enter:閉じる  r:再接続"));
     }
@@ -1407,6 +1407,7 @@ void key_cb(lv_event_t *e)
                 break;
             }
             if (b == 'c') { copy_mode_on(); break; }                 /* line-copy (keeps scroll pos) */
+            if (b == 'm') { g_menu_sel = 0; open_menu(); break; }    /* Session Menu (no SIDE key) */
             if (term_scroll_pos() > 0) { term_scroll_reset(); scroll_hint(0); }
             if (b == 'v') {                                          /* paste the internal clipboard */
                 if (g_clip[0] && term_is_alive()) term_send_bytes(g_clip, (int)strlen(g_clip));
@@ -1496,6 +1497,7 @@ void app_main(lv_obj_t *parent)
     lv_obj_clear_flag(parent, LV_OBJ_FLAG_SCROLLABLE);
 
     config_load();
+    themes_load();                              /* themes.json (seeded on first run) */
     g_lang = config_lang();
     show_profiles();
     g_watch = lv_timer_create(watch_cb, 400, NULL);
@@ -1538,10 +1540,9 @@ void app_event(int type, void *data)
         term_destroy();
         logsink_close();
         vpn_down();
-    } else if (type == CZ_EV_SIDE_KEY && g_scr == SCR_TERM) {
-        if (g_copy_row >= 0) { copy_mode_off(); return; }   /* SIDE cancels copy mode, not open menu */
-        g_menu_sel = 0; open_menu();
     }
+    /* CZ_EV_SIDE_KEY is intentionally ignored — the Session Menu opens with
+     * Alt+m so the app works without the physical SIDE button. */
 }
 
 #if defined(APP_EMU)

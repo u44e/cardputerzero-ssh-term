@@ -29,7 +29,7 @@ add_executable(netterm
     "${CMAKE_CURRENT_SOURCE_DIR}/main.c"
     "${APP_ROOT}/src/main.c"    "${APP_ROOT}/src/pty.c"     "${APP_ROOT}/src/term.c"
     "${APP_ROOT}/src/config.c"  "${APP_ROOT}/src/logsink.c" "${APP_ROOT}/src/sendfile.c"
-    "${APP_ROOT}/src/vpn.c"
+    "${APP_ROOT}/src/vpn.c"     "${APP_ROOT}/src/themes.c"
 )
 target_include_directories(netterm PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}" "${APP_ROOT}/src" "${APP_ROOT}/emu" "${LVGL_DIR}"

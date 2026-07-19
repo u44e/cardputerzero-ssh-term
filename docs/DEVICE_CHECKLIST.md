@@ -34,7 +34,7 @@ Mac側の実装・検証は完了済み。残るは**実機でしか確認でき
       DISCONNECTED になる（ServerAliveInterval=30×3）。
 - [ ] **フォントサイズ** — 編集の Size、Session Menu の Font size で 12/16/20px 実行中切替（桁行が変わる）。
 - [ ] **ログ** — log=1 で接続→`/sdcard/logs/<name>-<ts>.log` 生成、ログ閲覧で ANSI除去表示・↑↓スクロール。
-- [ ] **設定流し込み** — SIDEキー→Send file→ファイル選択→**Detected: Shift_JIS** 表示→Enterで UTF-8変換送出（機器に流れる）。
+- [ ] **設定流し込み** — `Alt+m`→Send file→ファイル選択→**Detected: Shift_JIS** 表示→Enterで UTF-8変換送出（機器に流れる）。
 - [ ] **日本語入力(OS IME)** — fcitx5-mozc を Wayland で有効化（`GTK_IM_MODULE=fcitx` 等）。漢字変換した文字が端末へ。
       → 候補窓は fcitx5 が自前表示。**アプリ内IMEは持たない（OS委譲）**ので、効かない時は fcitx5 側の設定
         （`GTK_IM_MODULE`/`QT_IM_MODULE`/`XMODIFIERS`、fcitx5 の自動起動、labwc/Wayland対応）を確認する。
@@ -44,7 +44,7 @@ Mac側の実装・検証は完了済み。残るは**実機でしか確認でき
       （NM無しは `wg-quick up <名>` 等へfallback）が通るか。失敗時ダイアログ「Connect anyway」。終了で down。
       → **秘密情報はアプリに保存しない**（OS側が保持。旧 term.conf の秘密キーは次回保存で消去）。
         polkit エージェント無し環境は pkexec 失敗するので、下記 **§4 の polkit ルール**を配置する。
-- [ ] **SIDEキー** — 実機の物理SIDEで Session Menu が開く（emは未配線。`app_event(CZ_EV_SIDE_KEY)`受信を確認）。
+- [ ] **Session Menu** — `Alt+m` で開く（物理SIDEボタンは不使用。`CZ_EV_SIDE_KEY` はアプリ側で無視）。
 
 ## 3. 残実装（実機確認後に必要なら）
 - 接続中オーバーレイ（VPN→疎通→ssh 段階表示, モック10）。

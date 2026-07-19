@@ -22,6 +22,7 @@ cz_add_lvgl_app(ssh_term NO_KBD_STUBS
         src/pty.c
         src/term.c
         src/config.c
+        src/themes.c
         src/logsink.c
         src/sendfile.c
         src/vpn.c

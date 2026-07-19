@@ -17,7 +17,7 @@
 | `↑ / ↓` | 項目の移動 |
 | `Enter` | 決定 |
 | `ESC` | 戻る（ターミナル中は端末へ送信） |
-| **SIDEキー** | ターミナル中に Session Menu を開く（エミュは `Fn+Q`） |
+| **`Alt+m`** | ターミナル中に Session Menu を開く（SIDE ボタンは使いません） |
 | **HOMEボタン** | ランチャーへ戻る（ホストが処理。アプリ側はPTY/ログ/VPNを自動で後始末） |
 
 ---
@@ -58,7 +58,7 @@
 | **Connection** | OS側 VPN 接続の**名前**（NM接続名 / wg・ovpn の config名 / ipsec connection名）。**秘密情報は入力せず OS が保持**。Tailscale は不要 |
 | Log | セッションログ保存 ON/OFF |
 | Size | 端末フォント `12 / 16 / 20px` |
-| Theme | 端末の既定文字色 `green / amber / cyan / white`（`←→`で選択） |
+| Theme | 端末の配色（`←→`で選択）。既定は `green / amber / cyan / white / lcd / pocket` — `lcd`=ゲームボーイ風（黄緑地×濃緑文字）、`pocket`=電卓風（灰緑地×濃灰文字）の昔の液晶テーマで背景色も変わる。テーマは **`/sdcard/themes.json`** で管理され（初回起動時に自動生成、`TERM_THEMES` でパス変更可）、`{"name","fg","bg"}` を編集・追加すると選択肢に反映される |
 
 操作：`↑↓`項目移動 / `Enter`テキスト編集（物理キーボードで入力→`Enter`確定）/ `←→`選択項目の切替 / `s`保存 / `ESC`戻る。
 
@@ -80,10 +80,10 @@
 
 ![ライブ端末](manual/3_term.png)
 
-- 下部のステータスバー＝`接続先名 ● CONNECTED  VPN  ◉REC(ログ中)  SIDE=menu`。
-- `ESC` は端末へ素通し（vim等で使用）。離脱・操作は **SIDEキー** で Session Menu を開きます。
+- 下部のステータスバー＝`接続先名 ● CONNECTED  VPN  ◉REC(ログ中)  Alt+m=menu`。配色は端末テーマ（文字=fg・背景=bg）に追従します。
+- `ESC` は端末へ素通し（vim等で使用）。離脱・操作は **`Alt+m`** で Session Menu を開きます。
 - **スクロールバック**：`Alt+↑↓`で1行ずつ、`Alt+←→`で1画面ずつ過去の出力を遡って表示します（ライブのまま。履歴は最大400行）。何かキーを打つと自動で最新表示へ戻り、履歴表示中は下部にヒントを表示します。
-- **F1〜F12 / Insert / PageUp / PageDown** はそのまま端末へ送られます（xterm互換エスケープ）。**`Alt+文字` は Meta**（ESCプレフィクス）として送出され、シェルの `M-b`/`M-f`（単語移動）や emacs 系の操作に使えます（`Alt+c`/`Alt+v` はコピー/貼り付けに割当て）。
+- **F1〜F12 / Insert / PageUp / PageDown** はそのまま端末へ送られます（xterm互換エスケープ）。**`Alt+文字` は Meta**（ESCプレフィクス）として送出され、シェルの `M-b`/`M-f`（単語移動）や emacs 系の操作に使えます（`Alt+c`/`Alt+v`/`Alt+m` はコピー/貼り付け/Session Menu に割当て）。
 - **行コピー＆貼り付け**：`Alt+c` でコピーモード（画面下にヒント表示）。`↑↓` でハイライト行を移動（最上段でさらに `↑` すると履歴へ）、`Enter` でその1行をコピー、`ESC` で取消。`Alt+v` で貼り付け（Enterは付かないので確認してから実行できます）。出力中の IP アドレスやコマンドの拾い直しに。切断画面でもコピーできます。
 
 ![コピーモード](manual/14_copymode.png)
@@ -96,9 +96,9 @@
 
 ---
 
-## 5. Session Menu（SIDEキー）
+## 5. Session Menu（`Alt+m`）
 
-ターミナル中に **SIDEキー**（エミュは `Fn+Q`）で開きます。
+ターミナル中に **`Alt+m`** で開きます（物理 SIDE ボタンは使いません）。
 
 ![Session Menu](manual/4_menu.png)
 
@@ -113,7 +113,7 @@
 | Close session | セッション終了→一覧へ |
 | Back | メニューを閉じる |
 
-`↑↓`移動 / `Enter`決定 / `ESC`または`SIDE`で閉じる。
+`↑↓`移動 / `Enter`決定 / `ESC`で閉じる。
 
 ---
 

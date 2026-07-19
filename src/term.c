@@ -1,6 +1,7 @@
 /* term.c — terminal core: PTY + libvterm + per color-run LVGL labels.
  * SGR: foreground + background colors, reverse-video (fg/bg swap) and underline.
- * Default is green-on-black to match the native console. */
+ * Default is green-on-black; light-background themes (lcd/pocket) override
+ * both the default fg and bg via term_set_theme. */
 #include "term.h"
 #include "pty.h"
 #include "logsink.h"
@@ -17,9 +18,15 @@
 #define MAX_RUNS 64          /* style runs per row (split on fg/bg/underline);
                                 >= max columns at supported font sizes (45@12px) */
 #define COL_FG   0x4CD96A    /* default fg (green, matches native console) */
+#define COL_BG   0x000000    /* default bg (black; lcd theme overrides) */
 
-static uint32_t s_theme_fg = COL_FG;   /* per-profile default foreground (set before create) */
-void term_set_theme(uint32_t rgb) { s_theme_fg = rgb ? rgb : COL_FG; }
+static uint32_t s_theme_fg = COL_FG;   /* per-profile defaults (set before create) */
+static uint32_t s_theme_bg = COL_BG;
+void term_set_theme(uint32_t fg, uint32_t bg)
+{
+    s_theme_fg = fg ? fg : COL_FG;
+    s_theme_bg = bg;
+}
 #define SB_CAP   400         /* scrollback lines kept */
 
 typedef struct { uint32_t cp[MAX_COLS]; uint32_t rgb[MAX_COLS]; short len; } sbline_t;
@@ -226,7 +233,7 @@ static lv_obj_t *mkrun(int r, int col, uint32_t fg, uint32_t bg, int ul, const c
     lv_obj_set_style_pad_all(l, 0, 0);
     lv_obj_set_style_text_letter_space(l, 0, 0);
     lv_obj_set_style_text_line_space(l, 0, 0);
-    if (bg != 0x000000) {                       /* non-default bg (incl. reverse-video) */
+    if (bg != s_theme_bg) {                     /* non-default bg (incl. reverse-video) */
         lv_obj_set_style_bg_color(l, lv_color_hex(bg), 0);
         lv_obj_set_style_bg_opa(l, LV_OPA_COVER, 0);
     }
@@ -254,7 +261,7 @@ static void do_render(void)
         int started = 0, rstart = 0, li = 0, rul = 0;
         uint32_t rfg = 0, rbg = 0;
         for (int c = 0; c < g.cols; ) {
-            uint32_t cp, fg, bg = 0x000000; int ul = 0, w = 1;
+            uint32_t cp, fg, bg = s_theme_bg; int ul = 0, w = 1;
             if (live) {
                 VTermPos pos; pos.row = idx - g.sb_n; pos.col = c;
                 VTermScreenCell cell;
@@ -375,14 +382,14 @@ void term_create(lv_obj_t *parent, const char *const argv[],
     vterm_screen_enable_altscreen(g.vts, 1);
     vterm_screen_reset(g.vts, 1);
 
-    /* default colors: the profile theme fg (green by default) on black */
+    /* default colors: the profile theme (green-on-black by default) */
     VTermColor dfg, dbg;
     vterm_color_rgb(&dfg, (s_theme_fg >> 16) & 0xFF, (s_theme_fg >> 8) & 0xFF, s_theme_fg & 0xFF);
-    vterm_color_rgb(&dbg, 0x00, 0x00, 0x00);
+    vterm_color_rgb(&dbg, (s_theme_bg >> 16) & 0xFF, (s_theme_bg >> 8) & 0xFF, s_theme_bg & 0xFF);
     vterm_state_set_default_colors(g.state, &dfg, &dbg);
 
     if (pty_open(&g.pty, argv, cols, rows) != 0) {
-        g.runlbl[0][0] = mkrun(0, 0, 0xFF6B6B, 0x000000, 0, "pty open failed");
+        g.runlbl[0][0] = mkrun(0, 0, 0xFF6B6B, s_theme_bg, 0, "pty open failed");
         g.runs[0] = 1;
         return;
     }
