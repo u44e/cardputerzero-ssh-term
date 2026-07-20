@@ -219,7 +219,7 @@ void config_macro_delete(int i)
 
 const char *const *config_argv(int i)
 {
-    static char sh[64], dest[208], port[16], keyp[96];
+    static char sh[192], dest[208], port[16], keyp[96];
     static char db[4], par[4], sb[4];       /* serial: databits / parity / stopbits */
     static const char *argv[14];
     const profile_t *p = config_get(i);
