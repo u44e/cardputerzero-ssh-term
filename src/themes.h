@@ -14,5 +14,6 @@ const char *themes_name(int i);               /* NULL if i out of range */
 int         themes_index(const char *name);   /* -1 if unknown */
 uint32_t    themes_fg(const char *name);      /* green if unknown */
 uint32_t    themes_bg(const char *name);      /* black if unknown */
+uint32_t    themes_shadow(const char *name);  /* glyph-shadow color; 0 = flat (no shadow) */
 
 #endif /* SSH_TERM_THEMES_H */

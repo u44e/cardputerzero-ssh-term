@@ -544,6 +544,7 @@ static void key_profiles(uint32_t k)
 
 /* ---------------- terminal ---------------- */
 static lv_obj_t *g_status;
+static lv_obj_t *g_status_sh;   /* bar-text shadow twin (reflective themes; else NULL) */
 static int      g_session_up;   /* a session exists (live or under an overlay) */
 static uint32_t g_disc_tick;    /* when SCR_TERM_DISC was entered (key grace period) */
 
@@ -551,11 +552,21 @@ static void add_status_bar(const profile_t *p, int logging)
 {
     int by = 154;
     uint32_t fg = themes_fg(p->theme), bg = themes_bg(p->theme);   /* bar matches the theme */
+    uint32_t sh = themes_shadow(p->theme);
     mkrect(bg, 0, by, 320, 170 - by);
+    if (sh) mkrect(sh, 2, by + 2, 320, 1);   /* hairline drops a shadow too */
     mkrect(fg, 0, by, 320, 1);
     char s[96];
     snprintf(s, sizeof(s), tr("%s   CONNECTED%s   Alt+m=menu","%s   接続中%s   Alt+m=menu"),
              p->name, logging ? tr("   REC","   録画") : "");
+    g_status_sh = NULL;
+    if (sh) {   /* shadow twin first = behind the bar text */
+        g_status_sh = lv_label_create(g_root);
+        lv_obj_set_style_text_font(g_status_sh, ui_font(12), 0);
+        lv_obj_set_style_text_color(g_status_sh, lv_color_hex(sh), 0);
+        lv_obj_set_pos(g_status_sh, 8, by + 4);
+        lv_label_set_text(g_status_sh, s);
+    }
     g_status = lv_label_create(g_root);
     lv_obj_set_style_text_font(g_status, ui_font(12), 0);
     lv_obj_set_style_text_color(g_status, lv_color_hex(fg), 0);
@@ -581,7 +592,7 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
 
     if (p->log) logsink_open(p->name);
-    term_set_theme(themes_fg(theme), themes_bg(theme));
+    term_set_theme(themes_fg(theme), themes_bg(theme), themes_shadow(theme));
     term_create(g_root, argv, g_mono, g_cols, g_rows, g_cw, g_ch);
     add_status_bar(p, p->log);
     /* Japanese input is handled by the OS IME (fcitx5-mozc): composed text
@@ -639,9 +650,11 @@ static void enter_disconnected(void)
         uint32_t bg = themes_bg(p ? p->theme : NULL);
         int light = ((bg >> 16 & 0xFF) * 299 + (bg >> 8 & 0xFF) * 587
                      + (bg & 0xFF) * 114) >= 128000;   /* light LCD bg -> dark red */
+        const char *m = tr("DISCONNECTED   Enter:close  r:reconnect",
+                           "切断   Enter:閉じる  r:再接続");
         lv_obj_set_style_text_color(g_status, lv_color_hex(light ? 0x8F1D1D : COL_RED), 0);
-        lv_label_set_text(g_status, tr("DISCONNECTED   Enter:close  r:reconnect",
-                                       "切断   Enter:閉じる  r:再接続"));
+        lv_label_set_text(g_status, m);
+        if (g_status_sh) lv_label_set_text(g_status_sh, m);   /* keep the twin in sync */
     }
     g_disc_tick = lv_tick_get();   /* grace period: don't eat keystrokes in flight */
     g_scr = SCR_TERM_DISC;

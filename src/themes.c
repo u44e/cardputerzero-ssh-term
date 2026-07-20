@@ -1,6 +1,8 @@
 /* themes.c — terminal color themes managed in a JSON file.
  * /sdcard/themes.json (TERM_THEMES overrides): { "themes": [
  *   { "name": "green", "fg": "#4CD96A", "bg": "#000000" }, ... ] }
+ * Optional "shadow": glyphs cast a drop shadow of that color onto the bg
+ * (reflective-LCD look — the lcd/pocket built-ins use it); absent = flat.
  * A missing file is seeded with the built-ins below so users can edit or add
  * themes; a broken/empty file falls back to the built-ins in memory. The
  * reader is a minimal flat scanner (per-theme objects, string values only) —
@@ -16,15 +18,15 @@
 #define DEF_FG     0x4CD96A   /* green-on-black, matches the native console */
 #define DEF_BG     0x000000
 
-typedef struct { char name[NAME_MAX + 1]; uint32_t fg, bg; } theme_t;
+typedef struct { char name[NAME_MAX + 1]; uint32_t fg, bg, shadow; } theme_t;
 
 static const theme_t DEFAULTS[] = {
-    { "green",  0x4CD96A, 0x000000 },
-    { "amber",  0xFFB82E, 0x000000 },
-    { "cyan",   0x3AD8FF, 0x000000 },
-    { "white",  0xECECF2, 0x000000 },
-    { "lcd",    0x0F380F, 0x9BBC0F },   /* Game Boy STN: dark green on yellow-green */
-    { "pocket", 0x22281E, 0xC7CFA8 },   /* calculator LCD: dark grey on grey-green */
+    { "green",  0x4CD96A, 0x000000, 0 },
+    { "amber",  0xFFB82E, 0x000000, 0 },
+    { "cyan",   0x3AD8FF, 0x000000, 0 },
+    { "white",  0xECECF2, 0x000000, 0 },
+    { "lcd",    0x1E2814, 0x9BBC0F, 0x698009 },   /* original Game Boy STN: ink on yellow-green, drop shadow */
+    { "pocket", 0x262C20, 0xCDD3C1, 0x929882 },   /* reflective LCD: grey-green backplate */
 };
 
 static theme_t s_themes[MAX_THEMES];
@@ -47,10 +49,13 @@ static void seed_file(void)   /* write the built-ins out for the user to edit */
     FILE *f = fopen(themes_path(), "w");
     if (!f) return;                       /* read-only fs — built-ins still active */
     fprintf(f, "{ \"themes\": [\n");
-    for (int i = 0; i < s_n; i++)
-        fprintf(f, "  { \"name\": \"%s\", \"fg\": \"#%06X\", \"bg\": \"#%06X\" }%s\n",
-                s_themes[i].name, (unsigned)s_themes[i].fg, (unsigned)s_themes[i].bg,
-                i + 1 < s_n ? "," : "");
+    for (int i = 0; i < s_n; i++) {
+        fprintf(f, "  { \"name\": \"%s\", \"fg\": \"#%06X\", \"bg\": \"#%06X\"",
+                s_themes[i].name, (unsigned)s_themes[i].fg, (unsigned)s_themes[i].bg);
+        if (s_themes[i].shadow)
+            fprintf(f, ", \"shadow\": \"#%06X\"", (unsigned)s_themes[i].shadow);
+        fprintf(f, " }%s\n", i + 1 < s_n ? "," : "");
+    }
     fprintf(f, "] }\n");
     fclose(f);
 }
@@ -107,6 +112,7 @@ void themes_load(void)
             snprintf(t->name, sizeof(t->name), "%s", name);
             t->fg = jstr(p, q, "fg", col, sizeof(col)) ? jcolor(col, DEF_FG) : DEF_FG;
             t->bg = jstr(p, q, "bg", col, sizeof(col)) ? jcolor(col, DEF_BG) : DEF_BG;
+            t->shadow = jstr(p, q, "shadow", col, sizeof(col)) ? jcolor(col, 0) : 0;
         }
         p = q + 1;
     }
@@ -134,4 +140,10 @@ uint32_t themes_bg(const char *name)
 {
     int i = themes_index(name);
     return i >= 0 ? s_themes[i].bg : DEF_BG;
+}
+
+uint32_t themes_shadow(const char *name)
+{
+    int i = themes_index(name);
+    return i >= 0 ? s_themes[i].shadow : 0;
 }

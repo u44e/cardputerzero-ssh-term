@@ -13,8 +13,10 @@ void term_create(lv_obj_t *parent, const char *const argv[],
                  int cell_w, int cell_h);
 
 /* Set the default terminal foreground/background (theme) for the next
- * term_create. bg 0 = black; light-bg themes (lcd) pass a non-zero bg. */
-void term_set_theme(uint32_t fg, uint32_t bg);
+ * term_create. bg 0 = black; light-bg themes (lcd) pass a non-zero bg.
+ * shadow != 0: glyphs/cursor cast a drop shadow of that color onto the bg
+ * (reflective-LCD themes); 0 = flat. */
+void term_set_theme(uint32_t fg, uint32_t bg, uint32_t shadow);
 
 /* Forward an LVGL key (from LV_EVENT_KEY) to the PTY as terminal bytes. */
 void term_feed_key(uint32_t key);

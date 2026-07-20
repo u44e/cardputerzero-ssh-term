@@ -1,7 +1,8 @@
 /* term.c — terminal core: PTY + libvterm + per color-run LVGL labels.
  * SGR: foreground + background colors, reverse-video (fg/bg swap) and underline.
  * Default is green-on-black; light-background themes (lcd/pocket) override
- * both the default fg and bg via term_set_theme. */
+ * both the default fg and bg via term_set_theme, and may add a glyph shadow
+ * (reflective-LCD look: one shadow label per row behind the run labels). */
 #include "term.h"
 #include "pty.h"
 #include "logsink.h"
@@ -22,10 +23,12 @@
 
 static uint32_t s_theme_fg = COL_FG;   /* per-profile defaults (set before create) */
 static uint32_t s_theme_bg = COL_BG;
-void term_set_theme(uint32_t fg, uint32_t bg)
+static uint32_t s_theme_shad;          /* 0 = flat; else reflective-LCD glyph shadow */
+void term_set_theme(uint32_t fg, uint32_t bg, uint32_t shadow)
 {
     s_theme_fg = fg ? fg : COL_FG;
     s_theme_bg = bg;
+    s_theme_shad = shadow;
 }
 #define SB_CAP   400         /* scrollback lines kept */
 
@@ -50,6 +53,7 @@ static struct {
     const lv_font_t *font;
     lv_obj_t     *runlbl[MAX_ROWS][MAX_RUNS];   /* per color-run labels */
     int           runs[MAX_ROWS];
+    lv_obj_t     *shadow[MAX_ROWS];  /* per-row glyph-shadow labels (reflective themes) */
     lv_obj_t     *cursor;
     lv_obj_t     *parent;
     lv_timer_t   *timer;
@@ -252,13 +256,13 @@ static void do_render(void)
     pthread_mutex_lock(&g.mtx);
     g.dirty = 0;
 
-    char run[MAX_COLS * 4 + 1];
+    char run[MAX_COLS * 4 + 1], sh[MAX_COLS * 4 + 1];
     for (int r = 0; r < g.rows; r++) {
         clear_runs(r);
         int idx = g.sb_n - g.scroll + r;            /* content line: <sb_n = history */
         int live = idx >= g.sb_n;
         sbline_t *L = live ? NULL : &g.sb[(g.sb_head + idx) % SB_CAP];
-        int started = 0, rstart = 0, li = 0, rul = 0;
+        int started = 0, rstart = 0, li = 0, rul = 0, si = 0;
         uint32_t rfg = 0, rbg = 0;
         for (int c = 0; c < g.cols; ) {
             uint32_t cp, fg, bg = s_theme_bg; int ul = 0, w = 1;
@@ -272,6 +276,12 @@ static void do_render(void)
                 if (L && c < L->len) { cp = L->cp[c]; fg = L->rgb[c]; }
                 else { cp = ' '; fg = s_theme_fg; }
             }
+            if (g.shadow[r] && si < MAX_COLS * 4 - 4) {
+                /* shadow row mirrors the glyphs; a filled (non-default-bg) run is
+                 * a raised box, not floating glyphs — blank its span instead */
+                if (bg != s_theme_bg) for (int k = 0; k < w; k++) sh[si++] = ' ';
+                else si += cp_to_utf8(cp, sh + si);
+            }
             if (!started) { started = 1; rstart = c; rfg = fg; rbg = bg; rul = ul; li = 0; }
             else if (fg != rfg || bg != rbg || ul != rul) {
                 run[li] = 0;
@@ -284,6 +294,11 @@ static void do_render(void)
         if (started) {
             run[li] = 0;
             if (g.runs[r] < MAX_RUNS) g.runlbl[r][g.runs[r]++] = mkrun(r, rstart, rfg, rbg, rul, run);
+        }
+        if (g.shadow[r]) {
+            while (si > 0 && sh[si - 1] == ' ') si--;   /* trailing blanks draw nothing */
+            sh[si] = 0;
+            lv_label_set_text(g.shadow[r], sh);
         }
     }
 
@@ -325,10 +340,28 @@ static void test_cb(lv_timer_t *t)
 }
 #endif
 
+/* glass-to-backplate gap: segment-shadow offset in px (pokecalc's SHAD_DX) */
+static int shad_off(void) { return 2; }
+
 /* create the cursor on g.parent (row run-labels are built per-frame in render) */
 static void build_grid(void)
 {
     for (int r = 0; r < g.rows; r++) g.runs[r] = 0;
+    if (s_theme_shad) {   /* one shadow label per row, behind the per-frame run labels */
+        int d = shad_off();
+        for (int r = 0; r < g.rows; r++) {
+            lv_obj_t *l = lv_label_create(g.parent);
+            lv_obj_set_style_text_font(l, g.font, 0);
+            lv_obj_set_style_text_color(l, lv_color_hex(s_theme_shad), 0);
+            lv_obj_set_style_pad_all(l, 0, 0);
+            lv_obj_set_style_text_letter_space(l, 0, 0);
+            lv_obj_set_style_text_line_space(l, 0, 0);
+            lv_label_set_long_mode(l, LV_LABEL_LONG_CLIP);
+            lv_obj_set_pos(l, d, r * g.cell_h + d);
+            lv_label_set_text(l, "");
+            g.shadow[r] = l;
+        }
+    }
     g.cursor = lv_obj_create(g.parent);
     lv_obj_remove_flag(g.cursor, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_border_width(g.cursor, 0, 0);
@@ -336,6 +369,13 @@ static void build_grid(void)
     lv_obj_set_style_pad_all(g.cursor, 0, 0);
     lv_obj_set_style_bg_color(g.cursor, lv_color_hex(s_theme_fg), 0);
     lv_obj_set_style_bg_opa(g.cursor, LV_OPA_50, 0);
+    if (s_theme_shad) {   /* floating segment: the block cursor drops a shadow too */
+        lv_obj_set_style_shadow_color(g.cursor, lv_color_hex(s_theme_shad), 0);
+        lv_obj_set_style_shadow_opa(g.cursor, LV_OPA_COVER, 0);
+        lv_obj_set_style_shadow_width(g.cursor, 2, 0);
+        lv_obj_set_style_shadow_offset_x(g.cursor, shad_off(), 0);
+        lv_obj_set_style_shadow_offset_y(g.cursor, shad_off(), 0);
+    }
     lv_obj_set_size(g.cursor, g.cell_w, g.cell_h);
     lv_obj_set_pos(g.cursor, 0, 0);
 }
@@ -346,7 +386,10 @@ void term_resize(const lv_font_t *font, int cols, int rows, int cell_w, int cell
     if (rows > MAX_ROWS) rows = MAX_ROWS;
     if (cols > MAX_COLS) cols = MAX_COLS;
     pthread_mutex_lock(&g.mtx);
-    for (int r = 0; r < g.rows; r++) clear_runs(r);
+    for (int r = 0; r < g.rows; r++) {
+        clear_runs(r);
+        if (g.shadow[r]) { lv_obj_delete(g.shadow[r]); g.shadow[r] = NULL; }
+    }
     if (g.cursor) { lv_obj_delete(g.cursor); g.cursor = NULL; }
     g.font = font; g.cols = cols; g.rows = rows; g.cell_w = cell_w; g.cell_h = cell_h;
     g.scroll = 0;
