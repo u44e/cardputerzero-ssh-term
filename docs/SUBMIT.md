@@ -79,7 +79,7 @@ cd ~/Projects/cardputerzero-ssh-term
 PYTHONPATH="$HOME/CardputerZero-AppBuilder/scripts" python3 -m czdev publish \
   --deb port/dist/netterm_0.2.2_arm64.deb
 ```
-> `app-builder.json` の `store.screenshots`（現在9枚）とアイコンは publish 時に自動で取り込まれる。
+> `app-builder.json` の `store.screenshots`（現在13枚）とアイコンは publish 時に自動で取り込まれる。
 
 ## czdev の既知バグと必要な設定（外部コントリビュータ向け・適用済み）
 外部（非 collaborator）が publish するとき、素の czdev は2箇所で落ちる。`~/CardputerZero-AppBuilder` に修正済み：

@@ -118,7 +118,7 @@ czdev login → .deb をビルド（pack-deb.sh）→ czdev publish --deb <file>
 | 準備物 | 実体 | 要件 |
 |---|---|---|
 | アイコン | `share/images/netterm.png` | **100×100 PNG**（`icon.png` 128×128 を縮小） |
-| スクショ ×9 | `store/screenshots/0[1-9]-*-320x170.png` | **320×170 PNG**（sessions/editor/terminal/menu/macros/macro-edit/files/send/logview） |
+| スクショ ×13 | `store/screenshots/[0-1][0-9]-*-320x170.png` | **320×170 PNG**（sessions/editor/terminal/menu/macros/macro-edit/files/send/logview/theme-lcd/theme-pocket/editor-lan/theme-amber） |
 
 ## レビュー前に判断が要る点
 1. **移植の要否**：公式 AppStore へ出すなら上記の標準バイナリ移植が前提。dlopen のまま使う別 launcher 環境が

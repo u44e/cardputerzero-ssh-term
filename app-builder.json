@@ -63,7 +63,11 @@
       "store/screenshots/06-macro-edit-320x170.png",
       "store/screenshots/07-files-320x170.png",
       "store/screenshots/08-send-320x170.png",
-      "store/screenshots/09-logview-320x170.png"
+      "store/screenshots/09-logview-320x170.png",
+      "store/screenshots/10-theme-lcd-320x170.png",
+      "store/screenshots/11-theme-pocket-320x170.png",
+      "store/screenshots/12-editor-lan-320x170.png",
+      "store/screenshots/13-theme-amber-320x170.png"
     ],
     "download": {
       "package": "netterm",
