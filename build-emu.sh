@@ -24,7 +24,7 @@ clang -dynamiclib -O2 -std=gnu11 -arch arm64 -fPIC \
   "${INC_COMPAT[@]}" \
   -I "$EMU" -I "$EMU/lib" -I "$EMU/lib/lvgl" -I "$APP/emu" \
   $(pkg-config --cflags sdl2) $(pkg-config --cflags vterm) \
-  "$APP/src/main.c" "$APP/src/pty.c" "$APP/src/term.c" "$APP/src/config.c" "$APP/src/themes.c" "$APP/src/logsink.c" "$APP/src/sendfile.c" "$APP/src/vpn.c" \
+  "$APP/src/main.c" "$APP/src/pty.c" "$APP/src/term.c" "$APP/src/config.c" "$APP/src/themes.c" "$APP/src/logsink.c" "$APP/src/sendfile.c" "$APP/src/vpn.c" "$APP/src/lan.c" \
   "$EMU/lib/lvgl/src/drivers/sdl/lv_sdl_keyboard.c" \
   $(pkg-config --libs vterm) \
   -undefined dynamic_lookup -lpthread -lm -liconv \

@@ -34,6 +34,8 @@ static void set_field(profile_t *p, const char *key, const char *val)
     else if (!strcmp(key, "vpn"))   snprintf(p->vpn, sizeof(p->vpn), "%s", val);
     /* legacy vpn_server/user/pass/secret keys are intentionally ignored — secrets
      * are OS-managed now, and dropping them here purges them on the next save. */
+    else if (!strcmp(key, "lan"))    snprintf(p->lan, sizeof(p->lan), "%s", val);
+    else if (!strcmp(key, "lan_if")) snprintf(p->lan_if, sizeof(p->lan_if), "%s", val);
     else if (!strcmp(key, "log"))   p->log = atoi(val);
     else if (!strcmp(key, "size"))  snprintf(p->size, sizeof(p->size), "%s", val);
     else if (!strcmp(key, "theme")) snprintf(p->theme, sizeof(p->theme), "%s", val);
@@ -125,6 +127,8 @@ int config_save(void)
         fprintf(f, "p%d.sfmt=%s\n",  i, p->sfmt[0] ? p->sfmt : "8N1");
         fprintf(f, "p%d.vpn_type=%s\n", i, p->vpn_type[0] ? p->vpn_type : "none");
         fprintf(f, "p%d.vpn=%s\n",   i, p->vpn);   /* OS-side connection name; no secrets */
+        fprintf(f, "p%d.lan=%s\n",   i, p->lan);
+        fprintf(f, "p%d.lan_if=%s\n", i, p->lan_if);
         fprintf(f, "p%d.log=%d\n",   i, p->log);
         fprintf(f, "p%d.size=%s\n",  i, p->size[0] ? p->size : "12");
         fprintf(f, "p%d.theme=%s\n", i, p->theme[0] ? p->theme : "green");

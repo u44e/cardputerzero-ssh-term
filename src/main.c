@@ -18,6 +18,7 @@
 #include "logsink.h"
 #include "sendfile.h"
 #include "vpn.h"
+#include "lan.h"
 
 #if defined(APP_EMU)
 #define MONO_PATH "/System/Library/Fonts/Menlo.ttc"
@@ -359,6 +360,12 @@ static void build_fields(profile_t *p)
         if (p->vpn_type[0] && strcmp(p->vpn_type, "none") && strcmp(p->vpn_type, "tailscale"))
             EF("Connection","接続名",0,p->vpn,sizeof p->vpn,0);
     }
+    if (!strcmp(p->proto, "ssh") || !strcmp(p->proto, "telnet")) {
+        /* wired-LAN gate: port stays down until this profile connects with this
+         * static IP; the OS config is untouched and returns on app exit */
+        EF("LAN IP","LAN固定IP",0,p->lan,sizeof p->lan,0);
+        if (p->lan[0]) EF("LAN dev","LANデバイス",0,p->lan_if,sizeof p->lan_if,0);
+    }
     EF("Log","ログ",3,0,0,0);
     EF("Size","文字サイズ",4,0,0,0);
     EF("Theme","配色",6,0,0,0);
@@ -602,11 +609,10 @@ static void do_connect_now(void)   /* the actual connect (after any VPN gate) */
     g_scr = SCR_TERM;
 }
 
-static void connect_profile(int i)
+static void connect_vpn_gate(void)   /* stage 2: VPN, then the actual connect */
 {
-    const profile_t *p = config_get(i);
-    if (!p) return;
-    g_cur_pidx = i;
+    const profile_t *p = config_get(g_cur_pidx);
+    if (!p) { show_profiles(); return; }
     /* serial is a local console — a stale vpn_type from a former ssh profile
      * must not gate it (the editor hides the VPN rows for serial) */
     if (strcmp(p->proto, "serial") && p->vpn_type[0] && strcmp(p->vpn_type, "none") && vpn_up(p) != 0) {
@@ -617,6 +623,22 @@ static void connect_profile(int i)
     do_connect_now();
 }
 
+static void connect_profile(int i)
+{
+    const profile_t *p = config_get(i);
+    if (!p) return;
+    g_cur_pidx = i;
+    /* stage 1: wired-LAN gate — the port only comes up (with the profile's
+     * static IP) for a session that asked for it; lan_up no-ops otherwise */
+    if (lan_up(p) != 0) {
+        open_dialog(SCR_PROFILES, COL_RED, tr("LAN failed","LAN失敗"),
+                    tr("wired LAN did not come up","有線LANを設定できませんでした"),
+                    tr("Connect anyway","このまま接続"), connect_vpn_gate);
+        return;
+    }
+    connect_vpn_gate();
+}
+
 /* ---- disconnected review + reconnect (session ended / connect failed) ---- */
 static void end_session(void)   /* tear everything down and return to the list */
 {
@@ -625,6 +647,7 @@ static void end_session(void)   /* tear everything down and return to the list *
     term_destroy();
     logsink_close();
     vpn_down();
+    lan_session_down();   /* back to the in-app baseline: port disabled */
     show_profiles();
 }
 
@@ -1511,6 +1534,7 @@ void app_main(lv_obj_t *parent)
 
     config_load();
     themes_load();                              /* themes.json (seeded on first run) */
+    lan_boot_down();                            /* LAN-gate profiles: port down until connect */
     g_lang = config_lang();
     show_profiles();
     g_watch = lv_timer_create(watch_cb, 400, NULL);
@@ -1553,6 +1577,7 @@ void app_event(int type, void *data)
         term_destroy();
         logsink_close();
         vpn_down();
+        lan_restore();   /* hand the port back to the OS (original config returns) */
     }
     /* CZ_EV_SIDE_KEY is intentionally ignored — the Session Menu opens with
      * Alt+m so the app works without the physical SIDE button. */

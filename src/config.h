@@ -17,6 +17,9 @@ typedef struct {
     char vpn_type[12]; /* none|wireguard|openvpn|ikev2|l2tp|tailscale */
     char vpn[96];    /* OS-side connection/config NAME to bring up. Secrets live in
                       * the OS (NetworkManager / /etc/wireguard …), never stored here. */
+    char lan[20];    /* wired-LAN static IP "a.b.c.d/nn"; empty = LAN gate off.
+                      * The port stays disabled until this profile connects. */
+    char lan_if[16]; /* wired interface (empty = eth0) */
     int  log;        /* 1 = save session log */
     char size[4];    /* terminal font px: "12" | "16" | "20" */
     char theme[16];  /* terminal theme name from themes.json (empty = green);
